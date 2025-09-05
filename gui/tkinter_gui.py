@@ -57,8 +57,8 @@ def read_config():
     config_path = path.Path("~/.config/draw-this").expanduser()
     config_path.mkdir(parents=True, exist_ok=True)
     config_file = config_path /"draw-this.json"
-    if config_file.stat().st_size != 0:
-        with open(file=config_file, mode='r') as config:
+    if config_file.exists() and config_file.stat().st_size != 0:
+        with open(file=config_file, mode='r+') as config:
             read_data = json.load(fp=config)
     else:
         return {"folders": [], "timers": [], "last_selected": {}}
@@ -107,8 +107,8 @@ custom_timer_frame = tk.Frame(central_frame)
 custom_timer_frame.pack(fill="x", pady=10)
 
 custom_entry = tk.Entry(custom_timer_frame,width=5)
-custom_timer = tk.Radiobutton(custom_timer_frame, text="Custom:", variable=delay_var, value=custom_entry.get())
-custom_timer.pack(side="left")
+custom_timer_label_1 = tk.Label(custom_timer_frame, text="Custom: ")
+custom_timer_label_1.pack(side="left")
 custom_entry.pack(side="left")
 
 custom_timer_label = tk.Label(custom_timer_frame, text="seconds")
