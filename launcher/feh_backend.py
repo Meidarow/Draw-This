@@ -1,5 +1,4 @@
 import subprocess
-from pathlib import Path
 
 def start_slideshow(folders, geometry=None, drawing_time=0):
     if isinstance(folders, str):
