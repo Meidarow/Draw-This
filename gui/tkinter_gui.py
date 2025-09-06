@@ -12,6 +12,15 @@ class TkinterInterface:
         self.selected_timer = self.settings_manager.get_last_timer()
         self.start_folder = "/mnt/Storage/Art/Resources"
 
+    def delete_item(self, value):
+        if isinstance(value, str):
+            self.folders = [t for t in self.folders if t[0] != value]
+            return
+
+        if isinstance(value, int):
+            self.timers.remove(value)
+            return
+
     def add_folder(self):
         folder_path = filedialog.askdirectory(initialdir=self.start_folder)
         if not folder_path or folder_path in [f for f, _ in self.folders]:
@@ -31,7 +40,7 @@ class TkinterInterface:
         self.add_timer(int(custom_timer.get()))
 
     def add_timer(self, timer: int):
-        if timer in self.timers:
+        if timer in self.timers or timer == 0:
             return
 
         self.timers.append(timer)
@@ -42,6 +51,9 @@ class TkinterInterface:
 
     def get_tk_folders(self) -> list[tuple[str,tk.BooleanVar]]:
         return self.folders
+
+    def get_last_timer(self):
+        return self.selected_timer
 
     def get_timers(self) -> list[int]:
         return self.timers
@@ -61,8 +73,8 @@ class TkinterInterface:
 
 class GuiBuilder:
     def __init__(self):
-        self.folder_widgets = []
-        self.timer_widgets = []
+        self.folder_widgets = {}
+        self.timer_widgets = {}
 
         self.root = tk.Tk()
         self.interface = TkinterInterface()
@@ -70,13 +82,23 @@ class GuiBuilder:
         self.root.geometry("1000x600")
         self.central_frame = tk.Frame(self.root)
         self.central_frame.place(relx=0.5, rely=0.5, anchor="center")
-        self.delay_var = tk.IntVar(value=0)
+        self.delay_var = tk.IntVar(value=self.interface.get_last_timer())
         self.folder_frame = tk.Frame(self.central_frame)
         self.folder_frame.pack(fill="both", expand=True, padx=10, pady=10)
         self.timer_frame = tk.Frame(self.central_frame)
         self.timer_frame.pack(fill="x", pady=10)
         self.console_frame = tk.Frame(self.central_frame)
         self.console_frame.pack(fill="both", expand=True, pady=10)
+
+    def delete_widget(self, widget_dict: dict, widget_value):
+        widget = widget_dict.pop(widget_value)
+        self.interface.delete_item(widget_value)
+        widget["button"].destroy()
+        widget["delete_button"].destroy()
+        if isinstance(widget_value,int):
+            return
+
+        widget["row"].destroy()
 
 
     def build_folder_section(self):
@@ -85,9 +107,13 @@ class GuiBuilder:
         folders_label.pack()
 
         for (folder, tk_enabled) in self.interface.get_tk_folders():
-            cb = tk.Checkbutton(self.folder_frame, text=folder, variable=tk_enabled)
-            cb.pack(anchor="w")
-            self.folder_widgets.append(cb)
+            folder_row = tk.Frame(self.folder_frame)
+            folder_row.pack(fill="x", anchor="w", pady=1)
+            cb = tk.Checkbutton(folder_row, text=folder, variable=tk_enabled)
+            cb.pack(side="left", anchor="w")
+            del_cb = tk.Button(folder_row, text="X", command=lambda f=folder: self.delete_widget(self.folder_widgets, f))
+            del_cb.pack(side="right")
+            self.folder_widgets[folder]= {"button":cb,"delete_button": del_cb, "row": folder_row}
 
     def build_timer_section(self):
         # Timer section
@@ -95,9 +121,11 @@ class GuiBuilder:
         timer_text.pack()
 
         for timer in self.interface.get_timers():
-            timer = tk.Radiobutton(self.timer_frame, text=f"{timer} seconds", variable=self.delay_var, value=timer)
-            timer.pack(side="left")
-            self.timer_widgets.append(timer)
+            rb = tk.Radiobutton(self.timer_frame, text=f"{timer} seconds", variable=self.delay_var, value=timer)
+            rb.pack(side="left")
+            del_cb = tk.Button(self.timer_frame,text="X", command=lambda t=timer : self.delete_widget(self.timer_widgets,t))
+            del_cb.pack(side="left")
+            self.timer_widgets[timer]= {"button":rb,"delete_button": del_cb}
 
         timer_inf = tk.Radiobutton(self.timer_frame, text="indefinite", variable=self.delay_var, value=0)
         timer_inf.pack(side="right")
@@ -125,19 +153,27 @@ class GuiBuilder:
         folder, var = self.interface.add_folder()
         if folder == "":
             return
-        cb = tk.Checkbutton(self.folder_frame, text=folder, variable=var)
-        cb.pack(side="left")
+        folder_row = tk.Frame(self.folder_frame)
+        folder_row.pack(fill="x", anchor="w", pady=1)
+        cb = tk.Checkbutton(folder_row, text=folder, variable=var)
+        cb.pack(side="left", anchor="w")
+        del_cb = tk.Button(folder_row,text="X", command=lambda f=folder: self.delete_widget(self.folder_widgets,f))
+        del_cb.pack(side="right")
+        self.folder_widgets[folder]= {"button":cb,"delete_button": del_cb, "row": folder_row}
 
     def add_timer_and_refresh(self, entry):
         self.interface.add_custom_timer(entry)
-        for timer in self.timer_widgets:
-            timer.destroy()
+        for timer in self.timer_widgets.values():
+            timer["button"].destroy()
+            timer["delete_button"].destroy()
         self.timer_widgets.clear()
 
         for timer in self.interface.get_timers():
             rb = tk.Radiobutton(self.timer_frame, text=f"{timer} seconds", variable=self.delay_var, value=timer)
             rb.pack(side="left")
-            self.timer_widgets.append(rb)
+            del_cb = tk.Button(self.timer_frame,text="X", command=lambda t=timer: self.delete_widget(self.timer_widgets,t))
+            del_cb.pack(side="left")
+            self.timer_widgets[timer]= {"button":rb,"delete_button": del_cb}
 
     def build_buttons_section(self):
         add_button = tk.Button(self.central_frame, text="Add folder", command=lambda:self.add_folder_and_refresh())
