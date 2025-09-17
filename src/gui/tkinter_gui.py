@@ -2,7 +2,8 @@ import tkinter as tk
 from tkinter import filedialog
 import sys
 from launcher.feh_backend import start_slideshow
-import settings_manager.settings_manager as sett
+import settings_manager as sett
+
 
 class TkinterInterface:
     def __init__(self):
@@ -11,6 +12,7 @@ class TkinterInterface:
         self.timers = self.settings_manager.get_timers()
         self.selected_timer = self.settings_manager.get_last_timer()
         self.start_folder = "/mnt/Storage/Art/Resources"
+        self.database_folder = "/home/study/.config/draw-this/image_paths.db"
 
     def delete_item(self, value):
         if isinstance(value, str):
