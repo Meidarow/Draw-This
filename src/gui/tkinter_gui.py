@@ -2,7 +2,7 @@ import tkinter as tk
 from tkinter import filedialog
 import sys
 from launcher.feh_backend import start_slideshow
-import settings_manager as sett
+import settings_manager.settings_manager as sett
 
 
 class TkinterInterface:
@@ -66,7 +66,7 @@ class TkinterInterface:
         if not selected_folders:
             return
 
-        start_slideshow(selected_folders, geometry=None, drawing_time=self.selected_timer)
+        start_slideshow(selected_folders, geometry=None, drawing_time=self.selected_timer, db_path= self.database_folder)
         self.settings_manager.set_last_timer(self.selected_timer)
         self.settings_manager.set_timers(self.timers)
         self.settings_manager.set_folders(self.get_folders())

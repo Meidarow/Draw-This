@@ -51,15 +51,26 @@ class Crawler:
                         self.commit()
                         file_count = 0
             except (PermissionError, FileNotFoundError, NotADirectoryError) as e:
-                print(f"Skipped {dir_entry.path}: {e}")
+                print(f"Skipped {current_dir}: {e}")
         self.commit()
 
 
+class Loader:
+    def __init__(self, db_path= ":memory:"):
+        self.database = sql.connect(db_path)
+
+    def total_db_loader(self):
+        cur = self.database.cursor()
+        cur.execute("""
+        SELECT  path, folder, randid, mtime
+        FROM image_paths
+        ORDER BY randid
+        """)
+        return [row[0] for row in cur.fetchall()]
+
+
+    def load(self):
+        pass
 
     def filter(self):
         pass
-
-class Loader:
-    def __init__(self):
-        self.database = sql.connect("/home/study/.config/draw-this/image_paths.db")
-
