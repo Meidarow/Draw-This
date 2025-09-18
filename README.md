@@ -4,6 +4,7 @@
 Built with **Tkinter** for the GUI and (for the time being) using **FEH** for Linux-only slideshow support.
 
 ---
+<img width="1000" height="632" alt="image" src="https://github.com/user-attachments/assets/e2caff15-e205-4dfa-942e-54f5bd43c22b" />
 
 ## Features
 
