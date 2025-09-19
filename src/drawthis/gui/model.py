@@ -1,8 +1,8 @@
 import tkinter as tk
 import pathlib as path
-from launcher.feh_backend import start_slideshow
-import settings.settings_manager as sett
-from utils.filedialogs import select_file
+from drawthis.render.feh_backend import start_slideshow
+import drawthis.utils.config as sett
+from drawthis.utils.filedialogs import select_file
 
 
 """

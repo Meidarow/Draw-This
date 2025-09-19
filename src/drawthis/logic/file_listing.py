@@ -12,7 +12,7 @@ in ~/.config/.
 It has two main classes:
 
 - Crawler:
-    Iteratively crawls through folders listing files in Breadth-first order allowing
+    Iteratively crawls through folders logic files in Breadth-first order allowing
     for sorting by (randid: random float, mtime: modification time, Built in SQL sorting).
 
 - Loader:
@@ -22,7 +22,7 @@ It has two main classes:
 Usage
 -----
 This file is imported as a package according to the following:
-    import listing.file_listing
+    import logic.file_listing
 """
 
 class Crawler:

@@ -1,5 +1,5 @@
 import subprocess, tempfile
-from listing.file_listing import Crawler, Loader
+from drawthis.logic.file_listing import Crawler, Loader
 
 
 """
@@ -15,7 +15,7 @@ It has a single function:
 Usage
 -----
 This file is imported as a package according to the following:
-    import launcher.feh_backend
+    import render.feh_backend
 """
 
 def start_slideshow(folders: list, geometry=None, drawing_time=0, db_path=":memory:", recalculate= True):

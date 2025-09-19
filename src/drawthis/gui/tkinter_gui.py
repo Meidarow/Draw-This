@@ -1,5 +1,5 @@
 import tkinter as tk
-from gui.model import TkinterInterface
+from drawthis.gui.model import TkinterInterface
 
 """
 Tkinter GUI for Draw-This.
