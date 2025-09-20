@@ -1,6 +1,7 @@
 import tkinter as tk
 import pathlib as path
 from drawthis.render.feh_backend import start_slideshow
+from drawthis.app.controller import start_slideshow_ogl
 import drawthis.utils.config as sett
 from drawthis.utils.filedialogs import select_file
 
@@ -106,6 +107,19 @@ class TkinterInterface:
         recalculate = self._should_recalculate()
         start_slideshow(selected_folders, geometry=None, drawing_time=self.selected_timer,
                         db_path=self.database_folder, recalculate=recalculate)
+        self._save_session()
+
+    def start_slideshow_gl(self) -> None:
+        """Passes GUI state to feh backend to start slideshow.
+
+                Args:
+                    :param timer: Slideshow duration in seconds.
+                """
+        selected_folders = [folder for folder, enabled in self.get_folders() if enabled]
+        if not selected_folders:
+            return
+        recalculate = self._should_recalculate()
+        start_slideshow_ogl(recalculate=recalculate,folders=selected_folders)
         self._save_session()
 
 

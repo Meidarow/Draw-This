@@ -172,7 +172,7 @@ class GuiBuilder:
         """Assembles all components of the main window's "start" and "add folder" buttons.
                 """
 
-        start_button = tk.Button(self.main_frame, text="Start", command=lambda: self.interface.start_slideshow(self.delay_var))
+        start_button = tk.Button(self.main_frame, text="Start", command=lambda: self.interface.start_slideshow_gl())
         start_button.grid(row=1, column=1, sticky="nswe", padx=5)
 
     def _build_widget(self, key, parent_frame, main_widget_class, main_widget_args=None, widget_dict=None):
