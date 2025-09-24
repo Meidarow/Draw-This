@@ -17,7 +17,7 @@ Run this file directly to start the GUI:
 """
 
 
-class GuiBuilder:
+class View:
     """Build and maintains the GUI and sends state to interface module.
 
         Attributes:

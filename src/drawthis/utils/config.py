@@ -24,7 +24,7 @@ class SettingsManager:
         Attributes:
             :ivar folders (list[tuple[str, tk.BooleanVar]]): Folder paths with enabled flags from previous session.
             :ivar timers (list[int]): Previously available timers.
-            :ivar last_timer (int): Previously chosen timer duration.
+            :ivar selected_timer (int): Previously chosen timer duration.
         """
 
     def __init__(self):
@@ -45,7 +45,7 @@ class SettingsManager:
             with open(self.config_file, "r", encoding='utf-8') as config:
                 read_data = json.load(config)
         except (json.JSONDecodeError, FileNotFoundError):
-            read_data = {"folders": [], "timers": [], "last_timer": 0}
+            read_data = {"folders": [], "timers": [], "selected_timer": 0}
 
         return read_data
 

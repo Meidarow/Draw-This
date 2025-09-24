@@ -1,4 +1,4 @@
-from drawthis.gui.gui_controller import GuiController
+from drawthis.app.controller import AppController
 
 """
 Main function for Draw-This app. Initializes the GUI.
@@ -10,8 +10,7 @@ Run this file directly to start the GUI:
 """
 
 def main():
-    app = GuiController()
-    app.start_gui()
+    app = AppController()
 
 
 if __name__ == "__main__":
