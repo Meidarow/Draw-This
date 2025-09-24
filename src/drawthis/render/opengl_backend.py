@@ -43,11 +43,22 @@ class RenderWindow(mglw.WindowConfig):
         self.vbo = self.ctx.buffer(vertices.tobytes())
         self.vao = self.ctx.vertex_array(self.prog,[(self.vbo,'2f 2f', "in_vert", "in_uv")],ibo)
         self.texture = self.ctx.texture
+        self.images = itertools.cycle([Path(p) for p in Loader(Path("~/.config/draw-this/image_paths.db").expanduser()).total_db_loader()])
+        self.set_texture(next(self.images))
+
+    def on_key_event(self, key, action, modifiers: KeyModifiers):
+        """Cycle textures with SPACEBAR."""
+        if key == self.wnd.keys.SPACE and action == self.wnd.keys.ACTION_PRESS:
+            self.set_texture(next(self.images))
 
     def on_render(self, time: float, frametime: float):
         # This method is called every frame
         self.ctx.clear(0.0, 0.0, 0.0, 1.0)
         self.vao.render()
+
+    def on_close(self):
+        # This method closes the window
+        self.wnd.close()
 
     def set_texture(self, path):
         image = Image.open(fp=path, mode="r").transpose(
@@ -73,18 +84,6 @@ class RenderWindow(mglw.WindowConfig):
         ], dtype='f4')
         self.vbo.write(vertices.tobytes())
 
-class TestWindow2(RenderWindow):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        # Preload some test images
-        self.images = itertools.cycle([Path(p) for p in Loader(Path("~/.config/draw-this/image_paths.db").expanduser()).total_db_loader()])
-        self.set_texture(next(self.images))
-
-    def on_key_event(self, key, action, modifiers: KeyModifiers):
-        """Cycle textures with SPACEBAR."""
-        if key == self.wnd.keys.SPACE and action == self.wnd.keys.ACTION_PRESS:
-            self.set_texture(next(self.images))
-
 def start_slideshow_ogl(recalculate, folders, selected_timer=None, db_path=None):
 
     if recalculate:
@@ -93,5 +92,5 @@ def start_slideshow_ogl(recalculate, folders, selected_timer=None, db_path=None)
         for folder in folders:
             crawler.crawl(folder)
 
-    TestWindow2.run()
+    RenderWindow.run()
 
