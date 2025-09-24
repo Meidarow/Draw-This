@@ -41,12 +41,18 @@ class GuiBuilder:
         self._build_buttons_section()
         self._build_timer_section()
 
-    def add_folder_gui(self, folder) -> None:
+    def add_folder_gui(self, folder, enabled) -> None:
         """Adds a single folder, with its path received via user file dialog to the
         internal attribute and to the GUI.
                 """
-        var = tk.BooleanVar(value=True)
-        var.trace_add(mode="write",callback=self._controller.sync_folder(folder, var.get()))
+
+        var = tk.BooleanVar(value=enabled)
+        def on_change(name, index, mode):
+            self._controller.sync_folder(folder, var.get())
+        var.trace_add(
+            mode="write",
+            callback= on_change
+        )
         self._build_widget(
             key=folder,
             parent_frame=self.folder_frame,
@@ -124,14 +130,8 @@ class GuiBuilder:
         add_button = tk.Button(header_row, text="Add folder", command=self._controller.add_folder)
         add_button.pack(side="right")
 
-        for (folder, tk_enabled) in self._controller.get_tk_folders():
-            self._build_widget(
-                key=folder,
-                parent_frame=self.folder_frame,
-                main_widget_class=tk.Checkbutton,
-                main_widget_args={"text": folder, "variable": tk_enabled},
-                widget_dict=self._folder_widgets
-            )
+        for (folder, enabled) in self._controller.get_folders():
+            self.add_folder_gui(folder, enabled)
 
     def _build_timer_section(self) -> None:
         """Assembles all components of the main window's horizontal timer list section.
@@ -169,7 +169,7 @@ class GuiBuilder:
         """Assembles all components of the main window's "start" and "add folder" buttons.
                 """
 
-        start_button = tk.Button(self.main_frame, text="Start", command=lambda: self._controller.start_slideshow_gl())
+        start_button = tk.Button(self.main_frame, text="Start", command=self._controller.run_slideshow)
         start_button.grid(row=1, column=1, sticky="nswe", padx=5)
 
     def _build_widget(self, key, parent_frame, main_widget_class, main_widget_args=None, widget_dict=None):

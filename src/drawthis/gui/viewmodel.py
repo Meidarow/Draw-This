@@ -17,7 +17,7 @@ This file is imported as a package according to the following:
      import gui.model
 """
 
-class TkinterInterface:
+class TkinterViewmodel:
     """Manages app state and bridges GUI with backend and persistence layers.
 
         Attributes:
@@ -27,10 +27,11 @@ class TkinterInterface:
         """
 
     def __init__(self):
-        self._settings_manager = sett.SettingsManager(folders={}, timers= [], last_timer= 0)
-        self._folders: dict[str, bool] = {item[0]: item[1] for item in self._settings_manager.get_folders().items()}
-        self._timers: list[int] = self._settings_manager.get_timers()
-        self._selected_timer: int = self._settings_manager.get_last_timer()
+        self._settings_manager = sett.SettingsManager()
+        self._last_session = self._settings_manager.read_config()
+        self._folders: dict[str, bool] = {item.get("path",""): item.get("enabled", False) for item in self._last_session.get("folders","")}
+        self._timers: list[int] = self._last_session.get("timers", [])
+        self._selected_timer: int = self._last_session.get("timer", 0)
 
     #Public API:
 
@@ -67,34 +68,39 @@ class TkinterInterface:
     def save_session(self) -> None:
         """Sets all current parameters in the settings_manager and saves to config.json.
                 """
-
-        self._settings_manager.set_last_timer(self._selected_timer)
-        self._settings_manager.set_timers(self._timers)
-        self._settings_manager.set_folders(self.get_folders())
-        self._settings_manager.write_config()
+        data = {
+            "folders": [{"path": folder_path, "enabled": enabled} for folder_path, enabled in self._folders.items()],
+            "timers": [timer for timer in self._timers],
+            "last_timer": self._selected_timer
+        }
+        self._settings_manager.write_config(data)
 
 
     #Acessors:
 
-    def get_folders(self) -> dict[str, bool]:
+    @property
+    def folders(self) -> dict[str, bool]:
         """Returns a list[tuple[str,bool]] of all folders.
                 """
 
-        return self._folders
+        return self._folders.copy()
 
-    def get_selected_timer(self) -> int:
+    @property
+    def selected_timer(self) -> int:
         """Returns the last used timer.
                 """
 
         return self._selected_timer
 
-    def get_timers(self) -> list[int]:
+    @property
+    def timers(self) -> list[int]:
         """Returns a list[int] of all internal timers.
                 """
 
-        return self._timers
+        return self._timers.copy()
 
-    def set_selected_timer(self, timer: int) -> None:
+    @selected_timer.setter
+    def selected_timer(self, timer: int) -> None:
         """Sets internal attribute to a passes timer value.
 
                 Args:
@@ -103,11 +109,12 @@ class TkinterInterface:
 
         self._selected_timer = timer
 
-    def get_current_state(self):
+    @property
+    def current_state(self):
 
         current_state = {
-            "folders": [item[0] for item in self.get_folders().items() if item[1]],
-            "timer": self.get_selected_timer(),
+            "folders": [path for path, enabled in self.folders.items() if enabled],
+            "timer": self.selected_timer,
             "recalculate": self._should_recalculate()
         }
         return current_state
@@ -120,8 +127,8 @@ class TkinterInterface:
         since the last slideshow.
                 """
 
-        selected_folders = {item[0] for item in self.get_folders().items() if item[1]}
-        previous_folders = {item[0] for item in self._settings_manager.get_folders().items() if item[1]}
+        selected_folders = {path for path, enabled in self.folders.items() if enabled}
+        previous_folders = {item.get("path") for item in self._last_session.get("folders") if item.get("enabled") }
         if selected_folders != previous_folders:
             return True
         return False

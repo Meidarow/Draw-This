@@ -18,7 +18,7 @@ class TestWindow2(RenderWindow):
         if key == self.wnd.keys.SPACE and action == self.wnd.keys.ACTION_PRESS:
             self.set_texture(next(self.images))
 
-def start_slideshow_ogl(recalculate, folders):
+def start_slideshow_ogl(recalculate, folders, timer=None, db_path=None):
 
     if recalculate:
         for folder in folders:
