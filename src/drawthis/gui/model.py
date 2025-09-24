@@ -1,9 +1,4 @@
-import tkinter as tk
-import pathlib as path
-from drawthis.render.feh_backend import start_slideshow
-from drawthis.app.controller import start_slideshow_ogl
 import drawthis.utils.config as sett
-from drawthis.utils.filedialogs import select_file
 
 
 """
@@ -32,27 +27,12 @@ class TkinterInterface:
         """
 
     def __init__(self):
-        self.settings_manager = sett.SettingsManager(folders=[], timers= [], last_timer= 0)
-        self.folders = [(folder,tk.BooleanVar(value=enabled)) for folder, enabled in self.settings_manager.get_folders()]
-        self.timers = self.settings_manager.get_timers()
-        self.selected_timer = self.settings_manager.get_last_timer()
-        self.start_folder = "/mnt/Storage/Art/Resources"
-        self.database_folder = path.Path("~/.config/draw-this/image_paths.db").expanduser()
-
+        self._settings_manager = sett.SettingsManager(folders={}, timers= [], last_timer= 0)
+        self._folders: dict[str, bool] = {item[0]: item[1] for item in self._settings_manager.get_folders().items()}
+        self._timers: list[int] = self._settings_manager.get_timers()
+        self._selected_timer: int = self._settings_manager.get_last_timer()
 
     #Public API:
-
-    def add_custom_timer(self, custom_timer: tk.Entry) -> None:
-        """Add a new timer selected by the user if field not empty.
-
-                Args:
-                    :param custom_timer: Duration in seconds selected by the user.
-                """
-
-        if custom_timer.get() == "":
-            return
-
-        self.add_timer(int(custom_timer.get()))
 
     def add_timer(self, timer: int) -> None:
         """Add a new timer if not already present.
@@ -61,23 +41,14 @@ class TkinterInterface:
                     :param timer: Duration in seconds.
                 """
 
-        if timer in self.timers or timer == 0:
-            return
+        self._timers.append(timer)
+        self._timers = sorted(self._timers)
 
-        self.timers.append(timer)
-        self.timers = sorted(self.timers)
-
-    def add_folder(self) -> tuple[str, tk.BooleanVar]:
+    def add_folder(self, folder_path: str) -> None:
         """Asks user for a folder and adds new folder if not already present.
                 """
 
-        folder_path = select_file(root=self.start_folder)
-        if not folder_path or folder_path in [f for f, _ in self.folders]:
-            return "", tk.BooleanVar(value=False)
-
-        var = tk.BooleanVar(value=True)
-        self.folders.append((folder_path, var))
-        return folder_path, var
+        self._folders[folder_path] = True
 
     def delete_item(self, value: str | int) -> None:
         """Removes a folder or timer from the attributes that store them.
@@ -86,68 +57,42 @@ class TkinterInterface:
                     :param value: Folder or Timer to be deleted from internal list.
                 """
         if isinstance(value, str):
-            self.folders = [t for t in self.folders if t[0] != value]
+            self._folders.pop(value)
             return
 
         if isinstance(value, int):
-            self.timers.remove(value)
+            self._timers.remove(value)
             return
 
-    def start_slideshow(self, timer: tk.IntVar) -> None:
-        """Passes GUI state to feh backend to start slideshow.
-
-                Args:
-                    :param timer: Slideshow duration in seconds.
+    def save_session(self) -> None:
+        """Sets all current parameters in the settings_manager and saves to config.json.
                 """
 
-        self.set_selected_timer(timer.get())
-        selected_folders = [folder for folder, enabled in self.get_folders() if enabled]
-        if not selected_folders:
-            return
-        recalculate = self._should_recalculate()
-        start_slideshow(selected_folders, geometry=None, drawing_time=self.selected_timer,
-                        db_path=self.database_folder, recalculate=recalculate)
-        self._save_session()
-
-    def start_slideshow_gl(self) -> None:
-        """Passes GUI state to feh backend to start slideshow.
-
-                Args:
-                    :param timer: Slideshow duration in seconds.
-                """
-        selected_folders = [folder for folder, enabled in self.get_folders() if enabled]
-        if not selected_folders:
-            return
-        recalculate = self._should_recalculate()
-        start_slideshow_ogl(recalculate=recalculate,folders=selected_folders)
-        self._save_session()
+        self._settings_manager.set_last_timer(self._selected_timer)
+        self._settings_manager.set_timers(self._timers)
+        self._settings_manager.set_folders(self.get_folders())
+        self._settings_manager.write_config()
 
 
     #Acessors:
 
-    def get_folders(self) -> list[tuple[str, bool]]:
+    def get_folders(self) -> dict[str, bool]:
         """Returns a list[tuple[str,bool]] of all folders.
                 """
 
-        return [(folder, tk_enabled.get()) for (folder, tk_enabled) in self.folders]
+        return self._folders
 
-    def get_tk_folders(self) -> list[tuple[str,tk.BooleanVar]]:
-        """Returns a list[tuple[str,tk.BooleanVar]] of all folders.
-                """
-
-        return self.folders
-
-    def get_last_timer(self) -> int:
+    def get_selected_timer(self) -> int:
         """Returns the last used timer.
                 """
 
-        return self.selected_timer
+        return self._selected_timer
 
     def get_timers(self) -> list[int]:
         """Returns a list[int] of all internal timers.
                 """
 
-        return self.timers
+        return self._timers
 
     def set_selected_timer(self, timer: int) -> None:
         """Sets internal attribute to a passes timer value.
@@ -156,7 +101,17 @@ class TkinterInterface:
                     :param timer: Duration in seconds.
                 """
 
-        self.selected_timer = timer
+        self._selected_timer = timer
+
+    def get_current_state(self):
+
+        current_state = {
+            "folders": [item[0] for item in self.get_folders().items() if item[1]],
+            "timer": self.get_selected_timer(),
+            "recalculate": self._should_recalculate()
+        }
+        return current_state
+
 
     #Private helpers:
 
@@ -165,18 +120,10 @@ class TkinterInterface:
         since the last slideshow.
                 """
 
-        selected_folders = [folder for folder, enabled in self.get_folders() if enabled]
-        previous_folders = [folder for folder, enabled in self.settings_manager.get_folders() if enabled]
+        selected_folders = {item[0] for item in self.get_folders().items() if item[1]}
+        previous_folders = {item[0] for item in self._settings_manager.get_folders().items() if item[1]}
         if selected_folders != previous_folders:
             return True
         return False
 
-    def _save_session(self) -> None:
-        """Sets all current parameters in the settings_manager and saves to config.json.
-                """
-
-        self.settings_manager.set_last_timer(self.selected_timer)
-        self.settings_manager.set_timers(self.timers)
-        self.settings_manager.set_folders(self.get_folders())
-        self.settings_manager.write_config()
 

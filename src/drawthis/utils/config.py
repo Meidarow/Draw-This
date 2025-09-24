@@ -27,7 +27,7 @@ class SettingsManager:
             :ivar last_timer (int): Previously chosen timer duration.
         """
 
-    def __init__(self, folders: list[tuple[str,bool]], timers: list[int], last_timer: int):
+    def __init__(self, folders: dict[str, bool], timers: list[int], last_timer: int):
         self.folders = folders
         self.timers = timers
         self.last_timer = last_timer
@@ -51,7 +51,7 @@ class SettingsManager:
         except (json.JSONDecodeError, FileNotFoundError):
             read_data = {"folders": [], "timers": [], "last_timer": 0}
 
-        self.folders = [(item.get("path",""), item.get("enabled", False)) for item in read_data.get("folders", [])]
+        self.folders = {item.get("path",""): item.get("enabled", False) for item in read_data.get("folders", [])}
         self.timers = read_data.get("timers", [])
         self.last_timer = read_data.get("last_timer", 0)
 
@@ -59,7 +59,7 @@ class SettingsManager:
         """Creates file and stores the current session's values from internal attributes.
                 """
         data = {
-            "folders": [{"path": folder_path, "enabled": enabled} for folder_path, enabled in self.folders],
+            "folders": [{"path": folder_path, "enabled": enabled} for folder_path, enabled in self.folders.items()],
             "timers": [timer for timer in self.timers],
             "last_timer": self.last_timer
         }
@@ -73,7 +73,7 @@ class SettingsManager:
                 """
         return self.folders
 
-    def set_folders(self, folders: list[tuple[str,bool]]):
+    def set_folders(self, folders: dict):
         """Updates folder list in internal attributes.
 
                 Args:
