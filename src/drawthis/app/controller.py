@@ -1,27 +1,31 @@
-from moderngl_window.context.base import KeyModifiers
-from drawthis.logic.file_listing import Loader
-from drawthis.logic.file_listing import Crawler
-from pathlib import Path
-import itertools
-from drawthis.render.opengl_backend import RenderWindow
+from drawthis.gui.coordinator import Coordinator
+from drawthis.render.feh_backend import start_slideshow_feh
+from drawthis.render.opengl_backend import start_slideshow_ogl
+import pathlib as path
+import sys
 
 
-class TestWindow2(RenderWindow):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        # Preload some test images
-        self.images = itertools.cycle([Path(p) for p in Loader(Path("~/.config/draw-this/image_paths.db").expanduser()).total_db_loader()])
-        self.set_texture(next(self.images))
+BACKEND_FUNCTION = start_slideshow_feh
+LOG_FOLDER = path.Path("/tmp/draw_this.log")
+DATABASE_FOLDER = path.Path("~/.config/draw-this/image_paths.db").expanduser()
 
-    def on_key_event(self, key, action, modifiers: KeyModifiers):
-        """Cycle textures with SPACEBAR."""
-        if key == self.wnd.keys.SPACE and action == self.wnd.keys.ACTION_PRESS:
-            self.set_texture(next(self.images))
+class AppController:
+    def __init__(self):
+        self.gui = Coordinator(self)
+        self.start_gui()
 
-def start_slideshow_ogl(recalculate, folders):
+    def start_gui(self):
+        log_file = open(LOG_FOLDER, "w")
+        sys.stdout = log_file
+        sys.stderr = log_file
 
-    if recalculate:
-        for folder in folders:
-            crawler = Crawler(folder, Path("~/.config/draw-this/image_paths.db").expanduser())
-            crawler.crawl()
-    TestWindow2.run()
+        try:
+            self.gui.run()
+        finally:
+            log_file.close()
+
+
+    def run_slideshow(self, slideshow_parameters):
+        if not slideshow_parameters.get("folders"):
+            return
+        BACKEND_FUNCTION(db_path=DATABASE_FOLDER, **slideshow_parameters)

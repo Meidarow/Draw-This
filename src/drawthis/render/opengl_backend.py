@@ -1,10 +1,12 @@
-import moderngl
 import moderngl_window as mglw
 from PIL import Image
 import numpy as np
 from PIL.Image import Transpose
 from drawthis.utils.shader_parser import parse_shader
-
+from moderngl_window.context.base import KeyModifiers
+from drawthis.logic.file_listing import Crawler, Loader
+from pathlib import Path
+import itertools
 """
 OpenGL Backend for Draw-This.
 
@@ -70,3 +72,26 @@ class RenderWindow(mglw.WindowConfig):
             1.0*h_scale, 1.0*v_scale, 1.0, 1.0,
         ], dtype='f4')
         self.vbo.write(vertices.tobytes())
+
+class TestWindow2(RenderWindow):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        # Preload some test images
+        self.images = itertools.cycle([Path(p) for p in Loader(Path("~/.config/draw-this/image_paths.db").expanduser()).total_db_loader()])
+        self.set_texture(next(self.images))
+
+    def on_key_event(self, key, action, modifiers: KeyModifiers):
+        """Cycle textures with SPACEBAR."""
+        if key == self.wnd.keys.SPACE and action == self.wnd.keys.ACTION_PRESS:
+            self.set_texture(next(self.images))
+
+def start_slideshow_ogl(recalculate, folders, selected_timer=None, db_path=None):
+
+    if recalculate:
+        crawler = Crawler(db_path)
+        crawler.clear_db()
+        for folder in folders:
+            crawler.crawl(folder)
+
+    TestWindow2.run()
+
