@@ -6,7 +6,8 @@ from drawthis.utils.shader_parser import parse_shader
 from moderngl_window.context.base import KeyModifiers
 from drawthis.logic.file_listing import Crawler, Loader
 from pathlib import Path
-import itertools
+from collections import deque
+
 """
 OpenGL Backend for Draw-This.
 
@@ -43,13 +44,18 @@ class RenderWindow(mglw.WindowConfig):
         self.vbo = self.ctx.buffer(vertices.tobytes())
         self.vao = self.ctx.vertex_array(self.prog,[(self.vbo,'2f 2f', "in_vert", "in_uv")],ibo)
         self.texture = self.ctx.texture
-        self.images = itertools.cycle([Path(p) for p in Loader(Path("~/.config/draw-this/image_paths.db").expanduser()).total_db_loader()])
-        self.set_texture(next(self.images))
+        self.images = deque([Path(p) for p in Loader(Path("~/.config/draw-this/image_paths.db").expanduser()).total_db_loader()])
+        self.set_texture(self.images[0])
 
     def on_key_event(self, key, action, modifiers: KeyModifiers):
         """Cycle textures with SPACEBAR."""
-        if key == self.wnd.keys.SPACE and action == self.wnd.keys.ACTION_PRESS:
-            self.set_texture(next(self.images))
+        if key == self.wnd.keys.RIGHT and action == self.wnd.keys.ACTION_PRESS:
+            self.images.rotate(1)
+            self.set_texture(self.images[0])
+
+        if key == self.wnd.keys.LEFT and action == self.wnd.keys.ACTION_PRESS:
+            self.images.rotate(-1)
+            self.set_texture(self.images[0])
 
     def on_render(self, time: float, frametime: float):
         # This method is called every frame
