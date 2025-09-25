@@ -5,7 +5,7 @@ import pathlib as path
 import sys
 
 
-BACKEND_FUNCTION = start_slideshow_feh
+BACKEND_FUNCTION = start_slideshow_ogl
 LOG_FOLDER = path.Path("/tmp/draw_this.log")
 DATABASE_FOLDER = path.Path("~/.config/draw-this/image_paths.db").expanduser()
 

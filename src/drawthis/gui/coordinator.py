@@ -11,6 +11,7 @@ class Coordinator:
     def __init__(self, app):
         self._settings_manager = SettingsManager()
         self.last_session = self._settings_manager.read_config()
+        self._is_session_running = False
         self.viewmodel = TkinterViewmodel(self.last_session)
         self.view = View(self)
         self.app = app
@@ -48,8 +49,13 @@ class Coordinator:
         delete_widget(widget_dict, item)
 
     def run_slideshow(self):
-        self.app.run_slideshow(self.slideshow_data())
-        self._save_session()
+        if not self._is_session_running:
+            try:
+                self._is_session_running = True
+                self.app.run_slideshow(self.slideshow_data())
+                self._save_session()
+            finally:
+                self._is_session_running = False
 
     def slideshow_data(self) -> dict:
         self.viewmodel.selected_timer = self.view.delay_var.get()
@@ -80,8 +86,7 @@ class Coordinator:
 
         return self.last_session.get("selected_timer", 0)
 
-    #Private helpers:
-
+    # Private helpers:
 
     def _save_session(self) -> None:
         """Sets all current parameters in the settings_manager and saves to config.json.
