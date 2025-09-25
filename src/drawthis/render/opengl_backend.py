@@ -46,6 +46,7 @@ class RenderWindow(mglw.WindowConfig):
         self.images = deque([Path(p) for p in Loader(Path("~/.config/draw-this/image_paths.db").expanduser()).total_db_loader()])
         self.set_texture(self.images[0])
 
+
     def on_resize(self, width: int, height: int):
         if hasattr(self, 'texture') and self.texture:
             image_ar = self.texture.width / self.texture.height
@@ -81,6 +82,7 @@ class RenderWindow(mglw.WindowConfig):
         self.texture = self.ctx.texture(image.size, 4, data=image.tobytes())
         self.texture.use(location=0)
         self.prog['tex'].value = 0
+        self.wnd.title = str(path)
 
     def _scale_vbo(self,image_ar,window_ar):
 
