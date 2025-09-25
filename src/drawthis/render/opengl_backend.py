@@ -43,9 +43,16 @@ class RenderWindow(mglw.WindowConfig):
         ], dtype='f4')
         self.vbo = self.ctx.buffer(vertices.tobytes())
         self.vao = self.ctx.vertex_array(self.prog,[(self.vbo,'2f 2f', "in_vert", "in_uv")],ibo)
-        self.texture = self.ctx.texture
         self.images = deque([Path(p) for p in Loader(Path("~/.config/draw-this/image_paths.db").expanduser()).total_db_loader()])
         self.set_texture(self.images[0])
+
+    def on_resize(self, width: int, height: int):
+        if hasattr(self, 'texture') and self.texture:
+            image_ar = self.texture.width / self.texture.height
+            fb_width, fb_height = self.wnd.buffer_size
+            window_ar = fb_width / fb_height
+            self._scale_vbo(image_ar, window_ar)
+            self.ctx.viewport = (0, 0, fb_width, fb_height)
 
     def on_key_event(self, key, action, modifiers: KeyModifiers):
         """Cycle textures with SPACEBAR."""
@@ -69,25 +76,34 @@ class RenderWindow(mglw.WindowConfig):
     def set_texture(self, path):
         image = Image.open(fp=path, mode="r").transpose(
             method=Transpose.FLIP_TOP_BOTTOM).convert("RGBA")
-        self._scale_vbo(image.width/image.height, self.wnd.width/self.wnd.height)
+        fb_width, fb_height = self.wnd.buffer_size
+        self._scale_vbo(image.width/image.height, fb_width/fb_height)
         self.texture = self.ctx.texture(image.size, 4, data=image.tobytes())
         self.texture.use(location=0)
         self.prog['tex'].value = 0
 
     def _scale_vbo(self,image_ar,window_ar):
-        if image_ar > window_ar :
-            h_scale = 1.0
-            v_scale = window_ar / image_ar
-        else :
-            v_scale = 1.0
-            h_scale = image_ar / window_ar
+
+            # image_ar = width / height
+            # window_ar = width / height
+
+        if image_ar > window_ar:
+            # Image is wider than window, fit by width
+            scale_x = 1.0
+            scale_y = window_ar / image_ar
+        else:
+            # Image is taller than window, fit by height
+            scale_y = 1.0
+            scale_x = image_ar / window_ar
+
         vertices = np.array([
-            # x, y, u, v
-            -1.0*h_scale, -1.0*v_scale, 0.0, 0.0,
-            1.0*h_scale, -1.0*v_scale, 1.0, 0.0,
-            -1.0*h_scale, 1.0*v_scale, 0.0, 1.0,
-            1.0*h_scale, 1.0*v_scale, 1.0, 1.0,
+           -scale_x, -scale_y, 0.0, 0.0,
+            scale_x, -scale_y, 1.0, 0.0,
+           -scale_x,  scale_y, 0.0, 1.0,
+            scale_x,  scale_y, 1.0, 1.0,
         ], dtype='f4')
+
+
         self.vbo.write(vertices.tobytes())
 
 def start_slideshow_ogl(recalculate, folders, selected_timer=None, db_path=None):
