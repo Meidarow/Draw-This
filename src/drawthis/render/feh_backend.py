@@ -1,6 +1,7 @@
-import subprocess, tempfile
-from drawthis.logic.file_listing import Crawler, Loader
+import subprocess
+import tempfile
 
+from drawthis import Crawler, Loader
 
 """
 FEH Backend for Draw-This.

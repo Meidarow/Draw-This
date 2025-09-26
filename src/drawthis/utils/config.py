@@ -1,6 +1,5 @@
-import pathlib as path
 import json
-
+import pathlib as path
 
 """
 Persistence manager for Draw-This.

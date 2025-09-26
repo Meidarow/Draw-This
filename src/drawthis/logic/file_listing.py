@@ -1,5 +1,8 @@
+import os
+import queue
+import random
 import sqlite3 as sql
-import os, random, queue
+
 # import databases as db
 # import aiosqlite as aio
 

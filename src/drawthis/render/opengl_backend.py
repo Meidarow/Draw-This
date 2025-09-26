@@ -1,12 +1,13 @@
-import moderngl_window as mglw
-from PIL import Image
-import numpy as np
-from PIL.Image import Transpose
-from drawthis.utils.shader_parser import parse_shader
-from moderngl_window.context.base import KeyModifiers
-from drawthis.logic.file_listing import Crawler, Loader
-from pathlib import Path
 from collections import deque
+from pathlib import Path
+
+import moderngl_window as mglw
+import numpy as np
+from PIL import Image
+from PIL.Image import Transpose
+from moderngl_window.context.base import KeyModifiers
+
+from drawthis import Crawler, Loader, parse_shader
 
 """
 OpenGL Backend for Draw-This.
@@ -72,7 +73,8 @@ class RenderWindow(mglw.WindowConfig):
 
     def on_close(self):
         # This method closes the window
-        self.wnd.close()
+        if not self.wnd.is_closing:
+            self.wnd.close()
 
     def set_texture(self, path):
         image = Image.open(fp=path, mode="r").transpose(

@@ -32,6 +32,18 @@ files = [
 ]
 
 [[package]]
+name = "blinker"
+version = "1.9.0"
+description = "Fast, simple object-to-object and broadcast signaling"
+optional = false
+python-versions = ">=3.9"
+groups = ["main"]
+files = [
+    {file = "blinker-1.9.0-py3-none-any.whl", hash = "sha256:ba0efaa9080b619ff2f3459d1d500c57bddea4a6b424b60a91141db6fd2f08bc"},
+    {file = "blinker-1.9.0.tar.gz", hash = "sha256:b4ce2265a7abece45e7cc896e98dbebe6cead56bcf805a3d23136d145f5445bf"},
+]
+
+[[package]]
 name = "databases"
 version = "0.9.0"
 description = "Async database support for Python."
@@ -909,4 +921,4 @@ files = [
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.12,<3.15"
-content-hash = "5166704f044e042a8d133261fe687566bc0d17522221c975a4b6f97e47d6b5dd"
+content-hash = "ddc6f48f859040ccad98633dc509aea28d8972104e77179c48a9feaf9e0ff38c"

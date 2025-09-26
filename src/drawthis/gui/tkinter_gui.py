@@ -29,11 +29,16 @@ class View:
 
     def __init__(self, controller):
         self._controller = controller
-        
+
         self._folder_widgets = {}
         self._timer_widgets = {}
 
         self.root = tk.Tk()
+        self.delay_var = tk.IntVar(value=self._controller.last_timer)
+        self.delay_var.trace_add(
+            mode="write",
+            callback=self.on_timer_change
+        )
         self._build_window()
 
     def build_gui(self):
@@ -41,27 +46,29 @@ class View:
         self._build_buttons_section()
         self._build_timer_section()
 
-    def add_folder_gui(self, folder, enabled) -> None:
+    def add_folder_gui(self, folder: str, enabled: tk.BooleanVar) -> None:
         """Adds a single folder, with its path received via user file dialog to the
         internal attribute and to the GUI.
                 """
 
-        var = tk.BooleanVar(value=enabled)
-        def on_change(name, index, mode):
+        var = enabled
+        def on_folder_change(*args):
             self._controller.sync_folder(folder, var.get())
+
         var.trace_add(
             mode="write",
-            callback= on_change
+            callback= on_folder_change
         )
         self._build_widget(
             key=folder,
             parent_frame=self.folder_frame,
             main_widget_class=tk.Checkbutton,
             main_widget_args={"text": folder, "variable": var},
-            widget_dict=self._folder_widgets
+            widget_type="folder"
         )
 
-    def refresh_timer_gui(self, timers) -> None:
+
+    def refresh_timer_gui(self, timers: list[int]) -> None:
         """Adds a single timer, with duration received via user interaction to the
         internal attribute and to the GUI.
 
@@ -76,8 +83,10 @@ class View:
                 parent_frame=self.timer_frame,
                 main_widget_class=tk.Radiobutton,
                 main_widget_args={"text": f"{timer} seconds", "variable": self.delay_var, "value": timer},
-                widget_dict=self._timer_widgets
+                widget_type="timer"
             )
+    def on_timer_change(self,*args):
+        self._controller.sync_selected_timer()
 
 
     # Private helpers:
@@ -89,7 +98,8 @@ class View:
         self.root.title("Draw-This")
         self.root.geometry("1000x600")
 
-        self.delay_var = tk.IntVar(value=self._controller.get_last_timer())
+
+
 
         # Main container with two columns
         self.main_frame = tk.Frame(self.root)
@@ -130,7 +140,7 @@ class View:
         add_button = tk.Button(header_row, text="Add folder", command=self._controller.add_folder)
         add_button.pack(side="right")
 
-        for (folder, enabled) in self._controller.get_folders():
+        for (folder, enabled) in self._controller.tk_folders:
             self.add_folder_gui(folder, enabled)
 
     def _build_timer_section(self) -> None:
@@ -153,13 +163,13 @@ class View:
         add_button_timer = tk.Button(custom_timer_frame, text="Add", command=lambda: self._controller.add_timer(custom_entry))
         add_button_timer.pack(side="left")
 
-        for timer in self._controller.get_timers():
+        for timer in self._controller.tk_timers:
             self._build_widget(
                 key=timer,
                 parent_frame=self.timer_frame,
                 main_widget_class=tk.Radiobutton,
                 main_widget_args={"text": f"{timer} seconds", "variable": self.delay_var, "value": timer},
-                widget_dict=self._timer_widgets
+                widget_type="timer"
             )
 
         timer_inf = tk.Radiobutton(self.timer_frame, text="indefinite", variable=self.delay_var, value=0)
@@ -169,16 +179,22 @@ class View:
         """Assembles all components of the main window's "start" and "add folder" buttons.
                 """
 
-        start_button = tk.Button(self.main_frame, text="Start", command=self._controller.run_slideshow)
+        start_button = tk.Button(self.main_frame, text="Start", command=self._controller.start_slideshow)
         start_button.grid(row=1, column=1, sticky="nswe", padx=5)
 
-    def _build_widget(self, key, parent_frame, main_widget_class, main_widget_args=None, widget_dict=None):
+    def _build_widget(self, key, parent_frame, main_widget_class, main_widget_args=None, widget_type=None):
         """Generic GUI builder for a single row widget with delete button.
                 """
         if main_widget_args is None:
             main_widget_args = {}
-        if widget_dict is None:
+
+        if widget_type is None:
             widget_dict = {}
+        else:
+            widget_dict = {
+                "folder": self._folder_widgets,
+                "timer": self._timer_widgets
+            }[widget_type]
 
         row = tk.Frame(parent_frame)
         row.pack(fill="x", anchor="w", pady=1)
@@ -186,23 +202,26 @@ class View:
         main_widget = main_widget_class(row, **main_widget_args)
         main_widget.pack(side="left")
 
-        del_btn = tk.Button(row, text="X", command=lambda k=key: self._controller.delete_widget(widget_dict, k))
+        del_btn = tk.Button(row, text="X", command=lambda k=key: self._controller.delete_widget(widget_type, k))
         del_btn.pack(side="left" if main_widget_class == tk.Radiobutton else "right")
 
         widget_dict[key] = {"main": main_widget, "delete_button": del_btn, "row": row}
 
-def delete_widget(widget_dict: dict, widget_value: str | int) -> None:
-    """Removes all components of a single widget from the GUI AND updates
-    internal attributes to reflect that.
+    def delete_widget(self, widget_type: str, widget_value: str | int) -> None:
+        """Removes all components of a single widget from the GUI AND updates
+        internal attributes to reflect that.
 
-            Args:
-                :param widget_dict: Widget dict from which to remove widget
-                :param widget_value: [UNIQUE] Value of widget to be removed
-            """
-
-    widget = widget_dict.pop(widget_value)
-    for component in widget.values():
-        component.destroy()
+                Args:
+                    :param widget_type: Widget dict from which to remove widget
+                    :param widget_value: [UNIQUE] Value of widget to be removed
+                """
+        widget_dicts = {
+            "folder": self._folder_widgets,
+            "timer": self._timer_widgets
+        }
+        widget = widget_dicts[widget_type].pop(widget_value)
+        for component in widget.values():
+            component.destroy()
     
 def clear_gui_widgets(widget_dict):
     """Removes all components of a single widget from the GUI ONLY.

@@ -1,7 +1,9 @@
-from moderngl_window.context.base import KeyModifiers
 import itertools
 from pathlib import Path
+
 from PIL import Image
+from moderngl_window.context.base import KeyModifiers
+
 from drawthis.render.opengl_backend import RenderWindow
 
 

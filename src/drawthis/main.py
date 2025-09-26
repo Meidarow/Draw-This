@@ -1,4 +1,4 @@
-from drawthis.app.controller import AppController
+from drawthis import AppController
 
 """
 Main function for Draw-This app. Initializes the GUI.

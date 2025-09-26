@@ -1,109 +1,117 @@
-"""
-Model to keep current State for Draw-This.
+import pathlib as path
+import tkinter as tk
 
-This module defines the Model and interface with persistence module.
-It has two main classes:
+from drawthis import Model, View, select_file
+from drawthis.app.signals import folder_added, timer_changed, widget_deleted
 
-- TkinterInterface:
-    Manages app state (folders, timers, selected timer) and bridges
-    between GUI, backend, and persistence (settings).
+START_FOLDER = path.Path("/mnt/Storage/Art/Resources")
 
-Usage
------
-This file is imported as a package according to the following:
-     import gui.model
-"""
+class Viewmodel:
+    def __init__(self, app):
+        self.model = Model()
+        self.view = View(self)
+        self.app = app
 
-class TkinterViewmodel:
-    """Manages app state and bridges GUI with backend and persistence layers.
+        self._tk_folders = [(folder, tk.BooleanVar(value=enabled)) for folder, enabled in self.model.folders.items()]
+        self._tk_timers = self.model.timers
 
-        Attributes:
-            :ivar folders (list[tuple[str, tk.BooleanVar]]): Folder paths with enabled flags.
-            :ivar timers (list[int]): Available timers.
-            :ivar selected_timer (int): Currently chosen timer duration.
-        """
+        # Signals:
+        folder_added.connect(self.on_folder_added)
+        timer_changed.connect(self.on_timer_changed)
+        widget_deleted.connect(self.on_widget_deleted)
 
-    def __init__(self, last_session):
-        self._folders: dict[str, bool] = {item.get("path",""): item.get("enabled", False) for item in last_session.get("folders","")}
-        self._timers: list[int] = last_session.get("timers", [])
-        self._selected_timer: int = last_session.get("selected_timer", 0)
+    def run(self):
+        self.view.build_gui()
+        self.view.root.mainloop()
 
-    #Public API:
 
-    def add_timer(self, timer: int) -> None:
-        """Add a new timer if not already present.
+    def add_timer(self, new_timer: tk.Entry) -> None:
+        """Add a new timer selected by the user if field not empty.
 
                 Args:
-                    :param timer: Duration in seconds.
+                    :param new_timer: Duration in seconds selected by the user.
                 """
+        timer = new_timer.get()
+        if timer == "" or timer == 0 or timer in self.model.timers:
+            return
 
-        self._timers.append(timer)
-        self._timers = sorted(self._timers)
+        self.model.add_timer(int(new_timer.get()))
 
-    def add_folder(self, folder_path: str) -> None:
+    def on_timer_changed(self, _):
+        self.tk_timers = self.model.timers
+        self.view.refresh_timer_gui(self.model.timers)
+
+
+    def add_folder(self) -> None:
         """Asks user for a folder and adds new folder if not already present.
                 """
 
-        self._folders[folder_path] = True
-
-    def delete_item(self, value: str | int) -> None:
-        """Removes a folder or timer from the attributes that store them.
-
-                Args:
-                    :param value: Folder or Timer to be deleted from internal list.
-                """
-        if isinstance(value, str):
-            self._folders.pop(value)
+        folder_path = select_file(root=START_FOLDER)
+        if not folder_path or folder_path in self.model.folders:
             return
 
-        if isinstance(value, int):
-            self._timers.remove(value)
-            return
+        self.model.add_folder(folder_path)
+
+    def on_folder_added(self, _, folder_path):
+        self.tk_folders = [(item[0],tk.BooleanVar(value=item[1])) for item in self.model.folders.items()]
+        self.view.add_folder_gui(folder=folder_path, enabled=tk.BooleanVar(value=True))
 
 
-    #Acessors:
+    def delete_widget(self, widget_type, item):
+        self.model.delete_item(widget_type, item)
 
+    def on_widget_deleted(self, _, widget_type, value):
+        self.view.delete_widget(widget_type, value)
+
+
+    #Accessors
     @property
-    def folders(self) -> dict[str, bool]:
+    def tk_folders(self) -> list[tuple[str,tk.BooleanVar]]:
         """Returns a list[tuple[str,bool]] of all folders.
                 """
 
-        return self._folders.copy()
+        return self._tk_folders
 
-    @property
-    def timers(self) -> list[int]:
-        """Returns a list[int] of all internal timers.
+    @tk_folders.setter
+    def tk_folders(self, value) -> None:
+        """Returns a list[tuple[str,bool]] of all folders.
                 """
 
-        return self._timers.copy()
+        self._tk_folders = value
 
     @property
-    def selected_timer(self) -> int:
-        """Returns the last used timer.
-                """
+    def tk_timers(self):
 
-        return self._selected_timer
+        return self._tk_timers
 
-    @selected_timer.setter
-    def selected_timer(self, timer: int) -> None:
-        """Sets internal attribute to a passes timer value.
+    @tk_timers.setter
+    def tk_timers(self, value):
 
-                Args:
-                    :param timer: Duration in seconds.
-                """
-
-        self._selected_timer = timer
+        self._tk_timers = value
 
     @property
-    def dump_state(self) -> dict:
-        return {
-            "folders": [{"path": folder_path, "enabled": enabled} for folder_path, enabled in
-                        self.folders.items()],
-            "timers": [timer for timer in self.timers],
-            "selected_timer": self.selected_timer
-        }
+    def last_timer(self):
 
-    def set_folder_enabled(self, folder_path: str, enabled: bool) -> None:
-        if folder_path not in self._folders:
-            raise KeyError("Invalid folder")
-        self._folders[folder_path] = enabled
+        return self.model.last_session.get("selected_timer", 0)
+
+    def sync_folder(self, key, value):
+        self.model.set_folder_enabled(key,value)
+
+    def sync_selected_timer(self):
+        self.model.selected_timer = self.view.delay_var.get()
+    # Private helpers:
+
+    def start_slideshow(self):
+        if not self.model.is_session_running:
+            try:
+                self.model.is_session_running = True
+                slideshow_parameters = {
+                    "folders": [folder for folder, enabled in self.model.folders.items() if enabled],
+                    "selected_timer": self.model.selected_timer,
+                    "recalculate": self.model.should_recalculate()
+                }
+                self.model.save_session()
+
+                self.app.run_slideshow(slideshow_parameters)
+            finally:
+                self.model.is_session_running = False
