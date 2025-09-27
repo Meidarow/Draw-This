@@ -41,6 +41,9 @@ class View:
         )
         self._build_window()
 
+
+    # Public API
+
     def build_gui(self) -> None:
         self._build_folder_section()
         self._build_buttons_section()
@@ -102,6 +105,10 @@ class View:
         widget = widget_dicts[widget_type].pop(widget_value)
         for component in widget.values():
             component.destroy()
+
+    def schedule(self, delay, callback):
+        # noinspection PyTypeChecker
+        self.root.after(delay, callback)
 
     # Private helpers:
 

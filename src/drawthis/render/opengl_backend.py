@@ -1,6 +1,8 @@
 from collections import deque
 from multiprocessing import Process
+import multiprocessing
 from pathlib import Path
+
 
 import moderngl_window as mglw
 import numpy as np
@@ -9,6 +11,7 @@ from PIL.Image import Transpose
 from moderngl_window.context.base import KeyModifiers
 
 from drawthis import Crawler, Loader, parse_shader
+from drawthis.app.signals import session_started
 
 """
 OpenGL Backend for Draw-This.
@@ -36,6 +39,7 @@ class RenderWindow(mglw.WindowConfig):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         # Do initialization here
+        self._queue = None
         self.texture = None
         self.prog = self.ctx.program(
             vertex_shader=parse_shader("basic.vert"),
@@ -80,8 +84,18 @@ class RenderWindow(mglw.WindowConfig):
     def on_close(self):
         # This method closes the window
         if not self.wnd.is_closing:
+            self.queue.send("session_ended")
             self.wnd.close()
 
+    # Accessors
+
+    @property
+    def queue(self):
+        return self._queue
+
+    @queue.setter
+    def queue(self, value: multiprocessing.Queue):
+        self._queue = value
 
     # Private helpers
 
@@ -121,17 +135,22 @@ class RenderWindow(mglw.WindowConfig):
 
 # Functions
 
-def start_slideshow_ogl(recalculate: bool, folders: list[str], selected_timer: int=None, db_path: str | Path=None) -> None:
+def start_slideshow_ogl(recalculate: bool, folders: list[str], db_path: str | Path=None, queue=None, **kwargs) -> None:
 
     if recalculate:
         crawler = Crawler(db_path)
         crawler.clear_db()
         for folder in folders:
             crawler.crawl(folder)
-
-    def f():
-        RenderWindow.run()
-
-    slideshow = Process(target=f, )
-
+    #session_started.send("OpenGL BE")
+    slideshow = Process(target=run_render_window, args=(queue,))
     slideshow.start()
+
+def run_render_window(queue):
+    if queue is None:
+        raise ValueError("multiprocessing.Queue must exist for the process to run.")
+
+    config = mglw.create_window_config_instance(RenderWindow, timer=None, args=None)
+    config.queue = queue
+    config.queue.send("session_started")
+    mglw.run_window_config_instance(config)

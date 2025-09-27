@@ -2,9 +2,10 @@ import pathlib as path
 import tkinter as tk
 from tkinter import filedialog
 
-from drawthis import Model, View, start_slideshow_ogl
-from drawthis.app.signals import folder_added, timer_changed, widget_deleted, session_running, session_ended
+from drawthis import Model, View, start_slideshow_ogl, start_slideshow_feh
+from drawthis.app.signals import folder_added, timer_changed, widget_deleted, session_started, session_ended
 from drawthis.utils.logger import Logger
+from drawthis.utils.subprocess_queue import SignalQueue
 
 """
 Viewmodel for Draw-This.
@@ -32,6 +33,7 @@ class Viewmodel:
         self.view = View(self)
         self.logger = Logger()
         self.logger.start_log()
+        self.signal_queue = SignalQueue()
 
         self._tk_folders = [(folder, tk.BooleanVar(value=enabled)) for folder, enabled in self.model.folders.items()]
         self._tk_timers = self.model.timers
@@ -40,7 +42,7 @@ class Viewmodel:
         folder_added.connect(self._on_folder_added)
         timer_changed.connect(self._on_timer_changed)
         widget_deleted.connect(self._on_widget_deleted)
-        session_running.connect(self._on_session_running)
+        session_started.connect(self._on_session_started)
         session_ended.connect(self._on_session_ended)
 
 
@@ -50,6 +52,7 @@ class Viewmodel:
         """Initializes the app."""
         try:
             self.view.build_gui()
+            self._poll_signals()
             self.view.root.mainloop()
         finally:
             self.logger.end_log()
@@ -89,6 +92,7 @@ class Viewmodel:
         if self.model.is_session_running:
             return
         try:
+            # session_started.send(self)
             slideshow_parameters = {
                 "folders": [folder for folder, enabled in self.model.folders.items() if enabled],
                 "selected_timer": self.model.selected_timer,
@@ -97,7 +101,7 @@ class Viewmodel:
             self.model.save_session()
             if not slideshow_parameters.get("folders"):
                 return
-            BACKEND_FUNCTION(db_path=DATABASE_FOLDER, **slideshow_parameters)
+            BACKEND_FUNCTION(db_path=DATABASE_FOLDER,queue= self.signal_queue, **slideshow_parameters)
         finally:
             return
 
@@ -136,6 +140,10 @@ class Viewmodel:
 
     # Private helpers
 
+    def _poll_signals(self):
+        self.signal_queue.poll_queue()
+        self.view.schedule(100, self._poll_signals)
+
     def _on_widget_deleted(self, _, widget_type: str, value: str | int) -> None:
         self.view.delete_widget(widget_type=widget_type, widget_value=value)
 
@@ -147,7 +155,7 @@ class Viewmodel:
         self.tk_folders = [(item[0],tk.BooleanVar(value=item[1])) for item in self.model.folders.items()]
         self.view.add_folder_gui(folder=folder_path, enabled=tk.BooleanVar(value=True))
 
-    def _on_session_running(self, _) -> None:
+    def _on_session_started(self, _) -> None:
         self.model.is_session_running = True
 
     def _on_session_ended(self, _) -> None:

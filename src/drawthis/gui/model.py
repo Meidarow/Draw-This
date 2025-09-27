@@ -140,15 +140,14 @@ class Model:
                         self.folders.items()],
             "timers": [timer for timer in self.timers],
             "selected_timer": self.selected_timer,
-            "selected_folders_hash": hash(frozenset(path for path, enabled in self.folders.items() if enabled))
         }
 
     def should_recalculate(self) -> bool:
         """Returns a bool indicating whether selected folders has changed
         since the last slideshow."""
-
-        selected_folders = hash(frozenset(path for path, enabled in self.folders.items() if enabled))
-        if selected_folders != self.last_session.get("selected_folders_hash", ""):
+        previous_folders = {item.get("path", "") for item in self.last_session.get("folders", None) if item.get("enabled", False)}
+        selected_folders = {path for path, enabled in self.folders.items() if enabled}
+        if selected_folders != previous_folders:
             return True
         return False
 

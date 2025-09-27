@@ -44,7 +44,7 @@ class SettingsManager:
             with open(self.config_file, "r", encoding='utf-8') as config:
                 read_data = json.load(config)
         except (json.JSONDecodeError, FileNotFoundError):
-            read_data = {"folders": [], "timers": [], "selected_timer": 0, "selected_folders_hash": 0}
+            read_data = {"folders": [], "timers": [], "selected_timer": 0}
 
         return read_data
 
