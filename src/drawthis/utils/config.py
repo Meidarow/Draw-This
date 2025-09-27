@@ -1,6 +1,5 @@
-import pathlib as path
 import json
-
+import pathlib as path
 
 """
 Persistence manager for Draw-This.
@@ -35,7 +34,7 @@ class SettingsManager:
 
     # Public API:
 
-    def read_config(self):
+    def read_config(self) -> dict[str, list | int]:
         """Parses file and restores previous session's final values to internal attributes.
                 """
         if not self.config_file.exists():
@@ -49,9 +48,12 @@ class SettingsManager:
 
         return read_data
 
-    def write_config(self, data):
+    def write_config(self, data: dict[str, list | int]) -> None:
         """Creates file and stores the current session's values from internal attributes.
                 """
 
-        with open(file=self.config_file, mode='w', encoding='utf-8') as config:
-            json.dump(obj=data, fp=config, indent=4)
+        try:
+            with open(file=self.config_file, mode='w', encoding='utf-8') as config:
+                json.dump(obj=data, fp=config, indent=4)
+        except FileNotFoundError:
+            return

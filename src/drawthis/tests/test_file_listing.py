@@ -1,4 +1,8 @@
-import pytest, tempfile, os
+import os
+import tempfile
+
+import pytest
+
 from drawthis.logic.file_listing import Crawler
 
 
