@@ -37,7 +37,7 @@ class View:
         self.delay_var = tk.IntVar(value=self._controller.last_timer)
         self.delay_var.trace_add(
             mode="write",
-            callback=self.on_timer_change
+            callback=self._on_timer_change
         )
         self._build_window()
 
@@ -85,9 +85,23 @@ class View:
                 main_widget_args={"text": f"{timer} seconds", "variable": self.delay_var, "value": timer},
                 widget_type="timer"
             )
-    def on_timer_change(self,*args):
-        self._controller.sync_selected_timer()
 
+
+    def delete_widget(self, widget_type: str, widget_value: str | int) -> None:
+        """Removes all components of a single widget from the GUI AND updates
+        internal attributes to reflect that.
+
+                Args:
+                    :param widget_type: Widget dict from which to remove widget
+                    :param widget_value: [UNIQUE] Value of widget to be removed
+                """
+        widget_dicts = {
+            "folder": self._folder_widgets,
+            "timer": self._timer_widgets
+        }
+        widget = widget_dicts[widget_type].pop(widget_value)
+        for component in widget.values():
+            component.destroy()
 
     # Private helpers:
 
@@ -98,9 +112,6 @@ class View:
         self.root.title("Draw-This")
         self.root.geometry("1000x600")
 
-
-
-
         # Main container with two columns
         self.main_frame = tk.Frame(self.root)
         self.main_frame.pack(fill="both", expand=True, padx=10, pady=10)
@@ -109,13 +120,7 @@ class View:
         self.folder_canvas = tk.Canvas(self.main_frame, width=900)
         self.folder_scrollbar = tk.Scrollbar(self.main_frame, orient="vertical", command=self.folder_canvas.yview)
         self.folder_frame = tk.Frame(self.folder_canvas, width= 890)
-
-        self.folder_frame.bind(
-            "<Configure>",
-            lambda e: self.folder_canvas.configure(
-                scrollregion=self.folder_canvas.bbox("all"),
-            )
-        )
+        self.folder_frame.bind("<Configure>", lambda e: self.folder_canvas.configure(scrollregion=self.folder_canvas.bbox("all"),))
 
         self.folder_canvas.configure(yscrollcommand=self.folder_scrollbar.set)
         self.folder_frame.grid()
@@ -205,23 +210,13 @@ class View:
         del_btn = tk.Button(row, text="X", command=lambda k=key: self._controller.delete_widget(widget_type, k))
         del_btn.pack(side="left" if main_widget_class == tk.Radiobutton else "right")
 
-        widget_dict[key] = {"main": main_widget, "delete_button": del_btn, "row": row}
-
-    def delete_widget(self, widget_type: str, widget_value: str | int) -> None:
-        """Removes all components of a single widget from the GUI AND updates
-        internal attributes to reflect that.
-
-                Args:
-                    :param widget_type: Widget dict from which to remove widget
-                    :param widget_value: [UNIQUE] Value of widget to be removed
-                """
-        widget_dicts = {
-            "folder": self._folder_widgets,
-            "timer": self._timer_widgets
+        widget_dict[key] = {
+            "main": main_widget,
+            "delete_button": del_btn,
+            "row": row
         }
-        widget = widget_dicts[widget_type].pop(widget_value)
-        for component in widget.values():
-            component.destroy()
+    def _on_timer_change(self,*args):
+        self._controller.sync_selected_timer()
     
 def clear_gui_widgets(widget_dict):
     """Removes all components of a single widget from the GUI ONLY.

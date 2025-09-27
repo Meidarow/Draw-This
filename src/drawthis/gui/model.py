@@ -69,6 +69,17 @@ class Model:
         handlers.get(widget_type, lambda v: None)(value)
         widget_deleted.send(self, widget_type=widget_type, value=value)
 
+    def set_folder_enabled(self, folder_path: str, enabled: bool) -> None:
+        if folder_path not in self._folders:
+            raise KeyError("Invalid folder")
+        self._folders[folder_path] = enabled
+
+    def save_session(self) -> None:
+        """Sets all current parameters in the settings_manager and saves to config.json.
+                """
+        data = self.session_parameters
+        self._settings_manager.write_config(data)
+        self.last_session = data
 
     #Acessors:
 
@@ -119,7 +130,8 @@ class Model:
             "folders": [{"path": folder_path, "enabled": enabled} for folder_path, enabled in
                         self.folders.items()],
             "timers": [timer for timer in self.timers],
-            "selected_timer": self.selected_timer
+            "selected_timer": self.selected_timer,
+            "selected_folders_hash": hash(frozenset(path for path, enabled in self.folders.items() if enabled))
         }
 
     def should_recalculate(self) -> bool:
@@ -127,22 +139,8 @@ class Model:
         since the last slideshow.
                 """
 
-        selected_folders = {path for path, enabled in self.folders.items() if enabled}
-        previous_folders = {item.get("path") for item in self.last_session.get("folders") if item.get("enabled") }
-        if selected_folders != previous_folders:
+        selected_folders = hash(frozenset(path for path, enabled in self.folders.items() if enabled))
+        if selected_folders != self.last_session.get("selected_folders_hash", ""):
             return True
         return False
-
-    def set_folder_enabled(self, folder_path: str, enabled: bool) -> None:
-        if folder_path not in self._folders:
-            raise KeyError("Invalid folder")
-        self._folders[folder_path] = enabled
-
-
-    def save_session(self) -> None:
-        """Sets all current parameters in the settings_manager and saves to config.json.
-                """
-        data = self.session_parameters
-        self._settings_manager.write_config(data)
-        self.last_session = data
 

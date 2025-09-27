@@ -44,7 +44,7 @@ class SettingsManager:
             with open(self.config_file, "r", encoding='utf-8') as config:
                 read_data = json.load(config)
         except (json.JSONDecodeError, FileNotFoundError):
-            read_data = {"folders": [], "timers": [], "selected_timer": 0}
+            read_data = {"folders": [], "timers": [], "selected_timer": 0, "selected_folders_hash": 0}
 
         return read_data
 
@@ -52,5 +52,8 @@ class SettingsManager:
         """Creates file and stores the current session's values from internal attributes.
                 """
 
-        with open(file=self.config_file, mode='w', encoding='utf-8') as config:
-            json.dump(obj=data, fp=config, indent=4)
+        try:
+            with open(file=self.config_file, mode='w', encoding='utf-8') as config:
+                json.dump(obj=data, fp=config, indent=4)
+        except FileNotFoundError:
+            return
