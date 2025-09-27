@@ -14,16 +14,19 @@ from drawthis import Crawler, Loader, parse_shader
 OpenGL Backend for Draw-This.
 
 This module defines the function that serves as an interface between the GUI and FEH:
-It has a single function:
+It has one class, RenderWindow, and one function, start_slideshow_ogl:
 
-- start_slideshow:
-    Accepts a series of parameters and builds a bash command calling feh with a series
-    of flags, according to user preferences.
+- RenderWindow:
+    Overloads moderngl_window's base WindowConfig class, provides a series of methods to control
+    the slideshow, texture rendering, and accepts user commands.
+
+- start_slideshow_ogl:
+    Takes a series of parameters and runs a moderngl-based slideshow in a multiprocess.Process.
 
 Usage
 -----
 This file is imported as a package according to the following:
-    import render.feh_backend
+    from drawthis import RenderWindow, start_slideshow_ogl
 """
 
 class RenderWindow(mglw.WindowConfig):
@@ -82,7 +85,7 @@ class RenderWindow(mglw.WindowConfig):
 
     # Private helpers
 
-    def _set_texture(self, path):
+    def _set_texture(self, path: str | Path) -> None:
         image = Image.open(fp=path, mode="r").transpose(
             method=Transpose.FLIP_TOP_BOTTOM).convert("RGBA")
         self.texture = self.ctx.texture(image.size, 4, data=image.tobytes())
@@ -91,7 +94,7 @@ class RenderWindow(mglw.WindowConfig):
         self._scale_image()
         self.wnd.title = str(path)
 
-    def _scale_image(self):
+    def _scale_image(self) -> None:
         image_ar = self.texture.width / self.texture.height
         fb_width, fb_height = self.wnd.buffer_size
         window_ar = fb_width / fb_height
@@ -118,7 +121,7 @@ class RenderWindow(mglw.WindowConfig):
 
 # Functions
 
-def start_slideshow_ogl(recalculate, folders, selected_timer=None, db_path=None):
+def start_slideshow_ogl(recalculate: bool, folders: list[str], selected_timer: int=None, db_path: str | Path=None) -> None:
 
     if recalculate:
         crawler = Crawler(db_path)

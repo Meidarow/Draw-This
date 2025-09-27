@@ -34,7 +34,7 @@ class SettingsManager:
 
     # Public API:
 
-    def read_config(self):
+    def read_config(self) -> dict[str, list | int]:
         """Parses file and restores previous session's final values to internal attributes.
                 """
         if not self.config_file.exists():
@@ -48,7 +48,7 @@ class SettingsManager:
 
         return read_data
 
-    def write_config(self, data):
+    def write_config(self, data: dict[str, list | int]) -> None:
         """Creates file and stores the current session's values from internal attributes.
                 """
 

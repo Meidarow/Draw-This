@@ -19,7 +19,7 @@ This file is imported as a package according to the following:
     import render.feh_backend
 """
 
-def start_slideshow_feh(folders: list, geometry=None, selected_timer=0, db_path=":memory:", recalculate= True):
+def start_slideshow_feh(folders: list[str], geometry: str=None, selected_timer: int=0, db_path: str=":memory:", recalculate: bool= True) -> None:
     """Assembles a bash command calling FEH to display a slideshow of images from a file containing all paths,
     allows setting of slideshow delay and duration.
 

@@ -2,10 +2,7 @@ import os
 import queue
 import random
 import sqlite3 as sql
-
-# import databases as db
-# import aiosqlite as aio
-
+from pathlib import Path
 
 """
 SQLite file lister for Draw-This.
@@ -38,19 +35,16 @@ class Crawler:
             :ivar dir_queue: Queue of directories to scan in FIFO order
         """
 
-    def __init__ (self, db_path= ":memory:"):
+    def __init__ (self, db_path: str | Path= ":memory:"):
         self.database = sql.connect(db_path)
         self.loading_block = []
         self.dir_queue = queue.Queue()
         self._setup_db()
 
-    def crawl(self, root_dir):
+    def crawl(self, root_dir: str | Path) -> None:
         """Goes through all directories in a queue, adding directories to the queue and
     files to the internal loading_block, to be inserted into the database once block is
-    large enough to minimize disk I/O.
-
-                Args:
-                """
+    large enough to minimize disk I/O."""
 
         self.dir_queue.put(root_dir)
         file_count = 0
@@ -70,7 +64,8 @@ class Crawler:
                 print(f"Skipped {current_dir}: {e}")
         self._commit()
 
-    def clear_db(self):
+    def clear_db(self) -> None:
+        """Clears the table in the database to be used to hold the scanned image paths."""
         cursor = self.database.cursor()
         cursor.execute("""
         DROP TABLE IF EXISTS image_paths    
@@ -85,11 +80,9 @@ class Crawler:
             )        
         """)
 
-    def _setup_db(self):
-        """Creates the database to be used to hold the scanned image paths.
+    def _setup_db(self) -> None:
+        """Creates the table in the database to be used to hold the scanned image paths."""
 
-                Args:
-                """
         cursor = self.database.cursor()
         cursor.execute("""
         CREATE TABLE IF NOT EXISTS image_paths (
@@ -103,12 +96,10 @@ class Crawler:
 
 
 
-    def _commit(self):
+    def _commit(self) -> None:
         """Inserts all paths in the loading_block into the database, generating
-        a randid random float for each entry.
+        a randid random float for each entry."""
 
-                Args:
-                """
         if not self.loading_block:
             return
         rows = []
@@ -131,7 +122,7 @@ class Loader:
     def __init__(self, db_path= ":memory:"):
         self.database = sql.connect(db_path)
 
-    def total_db_loader(self):
+    def total_db_loader(self) -> list:
         """Reads and returns ALL paths in the database in bulk.
                 """
         cur = self.database.cursor()
@@ -144,12 +135,10 @@ class Loader:
 
     # TODO
 
-    def block_loader(self):
-        """Reads and returns paths in the database in blocks of size = N.
-                """
+    def block_loader(self) -> None:
+        """Reads and returns paths in the database in blocks of size = N."""
         pass
 
-    def filter(self):
-        """Filters entries in database when reading, by extension.
-                """
+    def filter(self) -> None:
+        """Filters entries in database when reading, by extension."""
         pass

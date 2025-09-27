@@ -1,5 +1,12 @@
 from blinker import Namespace
+"""
+This module defines all signals used in the app, created in the app_signals Namespace
 
+Usage
+-----
+This file is imported by Viewmodel as a package according to the following:
+    from drawthis import signals
+"""
 app_signals = Namespace()
 
 # Model → ViewModel → View communication

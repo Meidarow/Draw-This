@@ -6,14 +6,14 @@ Tkinter GUI for Draw-This.
 This module defines the GUI and its builder's methods.
 It has one class:
 
-- GuiBuilder:
-    Constructs Tkinter widgets, binds them to interface state, and 
+- View:
+    Constructs Tkinter widgets, binds them to viewmodel methods, and 
     handles user interaction (folder selection, timer selection, console output).
 
 Usage
 -----
-Run this file directly to start the GUI:
-    python tkinter_gui.py
+This file is imported by Viewmodel as a package according to the following:
+     from drawthis import View
 """
 
 
@@ -27,21 +27,21 @@ class View:
             :ivar root (tk.Tk): root tkinter window.
         """
 
-    def __init__(self, controller):
-        self._controller = controller
+    def __init__(self, viewmodel) -> None:
+        self._viewmodel = viewmodel
 
         self._folder_widgets = {}
         self._timer_widgets = {}
 
         self.root = tk.Tk()
-        self.delay_var = tk.IntVar(value=self._controller.last_timer)
+        self.delay_var = tk.IntVar(value=self._viewmodel.last_timer)
         self.delay_var.trace_add(
             mode="write",
             callback=self._on_timer_change
         )
         self._build_window()
 
-    def build_gui(self):
+    def build_gui(self) -> None:
         self._build_folder_section()
         self._build_buttons_section()
         self._build_timer_section()
@@ -52,8 +52,8 @@ class View:
                 """
 
         var = enabled
-        def on_folder_change(*args):
-            self._controller.sync_folder(folder, var.get())
+        def on_folder_change(*args) -> None:
+            self._viewmodel.sync_folder(folder, var.get())
 
         var.trace_add(
             mode="write",
@@ -142,10 +142,10 @@ class View:
         header_row.pack(anchor="center", fill="x")
         folders_label = tk.Label(header_row, text="Select folders:")
         folders_label.pack(side="left")
-        add_button = tk.Button(header_row, text="Add folder", command=self._controller.add_folder)
+        add_button = tk.Button(header_row, text="Add folder", command=self._viewmodel.add_folder)
         add_button.pack(side="right")
 
-        for (folder, enabled) in self._controller.tk_folders:
+        for (folder, enabled) in self._viewmodel.tk_folders:
             self.add_folder_gui(folder, enabled)
 
     def _build_timer_section(self) -> None:
@@ -165,10 +165,10 @@ class View:
 
         custom_timer_label = tk.Label(custom_timer_frame, text="seconds")
         custom_timer_label.pack(side="left", padx=5)
-        add_button_timer = tk.Button(custom_timer_frame, text="Add", command=lambda: self._controller.add_timer(custom_entry))
+        add_button_timer = tk.Button(custom_timer_frame, text="Add", command=lambda: self._viewmodel.add_timer(custom_entry))
         add_button_timer.pack(side="left")
 
-        for timer in self._controller.tk_timers:
+        for timer in self._viewmodel.tk_timers:
             self._build_widget(
                 key=timer,
                 parent_frame=self.timer_frame,
@@ -184,10 +184,10 @@ class View:
         """Assembles all components of the main window's "start" and "add folder" buttons.
                 """
 
-        start_button = tk.Button(self.main_frame, text="Start", command=self._controller.start_slideshow)
+        start_button = tk.Button(self.main_frame, text="Start", command=self._viewmodel.start_slideshow)
         start_button.grid(row=1, column=1, sticky="nswe", padx=5)
 
-    def _build_widget(self, key, parent_frame, main_widget_class, main_widget_args=None, widget_type=None):
+    def _build_widget(self, key: str | int, parent_frame: tk.Frame, main_widget_class, main_widget_args: dict=None, widget_type: str=None) -> None:
         """Generic GUI builder for a single row widget with delete button.
                 """
         if main_widget_args is None:
@@ -207,7 +207,7 @@ class View:
         main_widget = main_widget_class(row, **main_widget_args)
         main_widget.pack(side="left")
 
-        del_btn = tk.Button(row, text="X", command=lambda k=key: self._controller.delete_widget(widget_type, k))
+        del_btn = tk.Button(row, text="X", command=lambda k=key: self._viewmodel.delete_widget(widget_type, k))
         del_btn.pack(side="left" if main_widget_class == tk.Radiobutton else "right")
 
         widget_dict[key] = {
@@ -215,10 +215,10 @@ class View:
             "delete_button": del_btn,
             "row": row
         }
-    def _on_timer_change(self,*args):
-        self._controller.sync_selected_timer()
+    def _on_timer_change(self,*args) -> None:
+        self._viewmodel.sync_selected_timer()
     
-def clear_gui_widgets(widget_dict):
+def clear_gui_widgets(widget_dict: dict) -> None:
     """Removes all components of a single widget from the GUI ONLY.
             """
 

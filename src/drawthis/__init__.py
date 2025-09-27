@@ -1,7 +1,6 @@
 # logic/
 from .logic.file_listing import Crawler, Loader
 # utils/
-from .utils.filedialogs import select_file
 from .utils.logger import Logger
 from .utils.shader_parser import parse_shader
 from .utils.config import SettingsManager
@@ -23,7 +22,6 @@ __all__ = [
     "View",
     "Model",
     "SettingsManager",
-    "select_file",
     "parse_shader",
     "Logger"
 ]

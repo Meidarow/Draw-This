@@ -1,9 +1,26 @@
 import pathlib as path
 import tkinter as tk
+from tkinter import filedialog
 
-from drawthis import Model, View, select_file, start_slideshow_ogl
+from drawthis import Model, View, start_slideshow_ogl
 from drawthis.app.signals import folder_added, timer_changed, widget_deleted, session_running, session_ended
 from drawthis.utils.logger import Logger
+
+"""
+Viewmodel for Draw-This.
+
+This model is the core of Draw-This, bridging the GUI and the model, and
+initializing the slideshow.
+
+- Viewmodel:
+    Interface between the View (GUI) and the Model (State/Persistence). Provides methods to be called
+    upon by the View, and listens to signals from the Model to command the View to update.
+
+Usage
+-----
+This file is imported by Main as a package according to the following:
+     from drawthis import Viewmodel
+"""
 
 START_FOLDER = path.Path("/mnt/Storage/Art/Resources")
 BACKEND_FUNCTION = start_slideshow_ogl
@@ -29,7 +46,8 @@ class Viewmodel:
 
     # Public API
 
-    def run(self):
+    def run(self) -> None:
+        """Initializes the app."""
         try:
             self.view.build_gui()
             self.view.root.mainloop()
@@ -52,21 +70,22 @@ class Viewmodel:
         """Asks user for a folder and adds new folder if not already present.
                 """
 
-        folder_path = select_file(root=START_FOLDER)
+        folder_path = filedialog.askdirectory(initialdir=START_FOLDER)
         if not folder_path or folder_path in self.model.folders:
             return
 
         self.model.add_folder(folder_path)
-    def delete_widget(self, widget_type, item):
-        self.model.delete_item(widget_type, item)
 
-    def sync_folder(self, key, value):
-        self.model.set_folder_enabled(key,value)
+    def delete_widget(self, widget_type: str, value: str | int) -> None:
+        self.model.delete_item(widget_type=widget_type, value=value)
 
-    def sync_selected_timer(self):
+    def sync_folder(self, key: str, value: bool) -> None:
+        self.model.set_folder_enabled(folder_path=key,enabled=value)
+
+    def sync_selected_timer(self) -> None:
         self.model.selected_timer = self.view.delay_var.get()
 
-    def start_slideshow(self):
+    def start_slideshow(self) -> None:
         if self.model.is_session_running:
             return
         try:
@@ -87,50 +106,49 @@ class Viewmodel:
 
     @property
     def tk_folders(self) -> list[tuple[str,tk.BooleanVar]]:
-        """Returns a list[tuple[str,bool]] of all folders.
+        """Returns a list[tuple[str,tk.BooleanVar]] of all folders.
                 """
 
         return self._tk_folders
 
     @tk_folders.setter
-    def tk_folders(self, value) -> None:
-        """Returns a list[tuple[str,bool]] of all folders.
+    def tk_folders(self, value: list[tuple[str,tk.BooleanVar]]) -> None:
+        """Modifies a list[tuple[str,tk.BooleanVar]] of all folders.
                 """
 
         self._tk_folders = value
 
     @property
-    def tk_timers(self):
+    def tk_timers(self) -> list[int]:
 
         return self._tk_timers
 
     @tk_timers.setter
-    def tk_timers(self, value):
+    def tk_timers(self, value: list[int]) -> None:
 
         self._tk_timers = value
 
     @property
-    def last_timer(self):
+    def last_timer(self) -> int:
 
         return self.model.last_session.get("selected_timer", 0)
 
 
     # Private helpers
 
-    def _on_widget_deleted(self, _, widget_type, value):
-        self.view.delete_widget(widget_type, value)
+    def _on_widget_deleted(self, _, widget_type: str, value: str | int) -> None:
+        self.view.delete_widget(widget_type=widget_type, widget_value=value)
 
-    def _on_timer_changed(self, _):
+    def _on_timer_changed(self, _) -> None:
         self.tk_timers = self.model.timers
         self.view.refresh_timer_gui(self.model.timers)
 
-    def _on_folder_added(self, _, folder_path):
+    def _on_folder_added(self, _, folder_path) -> None:
         self.tk_folders = [(item[0],tk.BooleanVar(value=item[1])) for item in self.model.folders.items()]
         self.view.add_folder_gui(folder=folder_path, enabled=tk.BooleanVar(value=True))
 
-    def _on_session_running(self, text):
+    def _on_session_running(self, _) -> None:
         self.model.is_session_running = True
-        print(text)
 
-    def _on_session_ended(self):
+    def _on_session_ended(self, _) -> None:
         self.model.is_session_running = False

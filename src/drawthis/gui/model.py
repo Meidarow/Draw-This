@@ -2,19 +2,18 @@ from drawthis import SettingsManager
 from drawthis.app.signals import folder_added, widget_deleted, timer_changed
 
 """
-Model to keep current State for Draw-This.
+Model to keep current state for Draw-This.
 
 This module defines the Model and interface with persistence module.
 It has two main classes:
 
-- TkinterInterface:
-    Manages app state (folders, timers, selected timer) and bridges
-    between GUI, backend, and persistence (settings).
+- Model:
+    Manages app state (folders, timers, selected timer, etc) and persistence (settings).
 
 Usage
 -----
-This file is imported as a package according to the following:
-     import gui.model
+This file is imported by Viewmodel as a package according to the following:
+     from drawthis import Model
 """
 
 class Model:
@@ -49,8 +48,7 @@ class Model:
         timer_changed.send(self)
 
     def add_folder(self, folder_path: str) -> None:
-        """Asks user for a folder and adds new folder if not already present.
-                """
+        """Asks user for a folder and adds new folder if not already present."""
 
         self._folders[folder_path] = True
         folder_added.send(self, folder_path=folder_path)
@@ -70,13 +68,19 @@ class Model:
         widget_deleted.send(self, widget_type=widget_type, value=value)
 
     def set_folder_enabled(self, folder_path: str, enabled: bool) -> None:
+        """Add a new timer if not already present.
+
+                        Args:
+                            :param folder_path: Duration in seconds.
+                            :param enabled: Boolean
+                        """
         if folder_path not in self._folders:
             raise KeyError("Invalid folder")
         self._folders[folder_path] = enabled
 
     def save_session(self) -> None:
-        """Sets all current parameters in the settings_manager and saves to config.json.
-                """
+        """Sets all current parameters in the settings_manager and saves to config.json."""
+
         data = self.session_parameters
         self._settings_manager.write_config(data)
         self.last_session = data
@@ -85,22 +89,19 @@ class Model:
 
     @property
     def folders(self) -> dict[str, bool]:
-        """Returns a list[tuple[str,bool]] of all folders.
-                """
+        """Returns a list[tuple[str,bool]] of all folders."""
 
         return self._folders.copy()
 
     @property
     def timers(self) -> list[int]:
-        """Returns a list[int] of all internal timers.
-                """
+        """Returns a list[int] of all internal timers."""
 
         return self._timers.copy()
 
     @property
     def selected_timer(self) -> int:
-        """Returns the last used timer.
-                """
+        """Returns the last used timer."""
 
         return self._selected_timer
 
@@ -115,17 +116,25 @@ class Model:
         self._selected_timer = timer
 
     @property
-    def is_session_running(self):
+    def is_session_running(self) -> bool:
+        """Add a new timer if not already present."""
 
         return self._is_session_running
 
     @is_session_running.setter
-    def is_session_running(self, value):
+    def is_session_running(self, value: bool) -> None:
+        """Add a new timer if not already present.
+
+                        Args:
+                            :param value: Boolean.
+                        """
 
         self._is_session_running = value
 
     @property
     def session_parameters(self) -> dict:
+        """Add a new timer if not already present."""
+
         return {
             "folders": [{"path": folder_path, "enabled": enabled} for folder_path, enabled in
                         self.folders.items()],
@@ -136,8 +145,7 @@ class Model:
 
     def should_recalculate(self) -> bool:
         """Returns a bool indicating whether selected folders has changed
-        since the last slideshow.
-                """
+        since the last slideshow."""
 
         selected_folders = hash(frozenset(path for path, enabled in self.folders.items() if enabled))
         if selected_folders != self.last_session.get("selected_folders_hash", ""):
