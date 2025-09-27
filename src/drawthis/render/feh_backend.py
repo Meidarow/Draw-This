@@ -1,6 +1,8 @@
-import subprocess, tempfile
-from listing.file_listing import Crawler, Loader
+import subprocess
+import tempfile
+from pathlib import Path
 
+from drawthis import Crawler, Loader
 
 """
 FEH Backend for Draw-This.
@@ -15,10 +17,10 @@ It has a single function:
 Usage
 -----
 This file is imported as a package according to the following:
-    import launcher.feh_backend
+    import render.feh_backend
 """
 
-def start_slideshow(folders: list, geometry=None, drawing_time=0, db_path=":memory:", recalculate= True):
+def start_slideshow_feh(recalculate: bool= True, folders: list[str]= None, db_path: str | Path=":memory:", geometry: str=None, **kwargs) -> None:
     """Assembles a bash command calling FEH to display a slideshow of images from a file containing all paths,
     allows setting of slideshow delay and duration.
 
@@ -26,8 +28,8 @@ def start_slideshow(folders: list, geometry=None, drawing_time=0, db_path=":memo
                 :param folders: List of paths to root directories from which to display images
                 :param recalculate: Boolean specifying whether to re-crawl folders or just load DB
                 :param db_path: Path to DB on current OS/platform
-                :param drawing_time: Duration of each slide in seconds
                 :param geometry: String specifying windowed/fullscreen modes
+                :kwarg selected_timer: Duration of each slide in seconds
             """
 
     if isinstance(folders, str):
@@ -38,9 +40,10 @@ def start_slideshow(folders: list, geometry=None, drawing_time=0, db_path=":memo
         return
 
     if recalculate:
+        crawler = Crawler(db_path)
+        crawler.clear_db()
         for folder in folders:
-            crawler = Crawler(folder, db_path)
-            crawler.crawl()
+            crawler.crawl(folder)
 
     paths = Loader(db_path).total_db_loader()
     with tempfile.NamedTemporaryFile(mode="w", delete=False) as f:
@@ -49,8 +52,8 @@ def start_slideshow(folders: list, geometry=None, drawing_time=0, db_path=":memo
 
     cmd = ["feh", "-rZ.", "-B", "black"]
 
-    if drawing_time != 0:
-        cmd += ["-D", str(drawing_time)]
+    if "selected_timer" in kwargs and kwargs["selected_timer"] != 0:
+        cmd += ["-D", str("selected_timer")]
 
     cmd += ["--filelist", filelist_path]
 

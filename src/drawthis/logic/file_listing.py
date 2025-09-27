@@ -1,8 +1,8 @@
+import os
+import queue
+import random
 import sqlite3 as sql
-import os, random, queue
-# import databases as db
-# import aiosqlite as aio
-
+from pathlib import Path
 
 """
 SQLite file lister for Draw-This.
@@ -12,7 +12,7 @@ in ~/.config/.
 It has two main classes:
 
 - Crawler:
-    Iteratively crawls through folders listing files in Breadth-first order allowing
+    Iteratively crawls through folders logic files in Breadth-first order allowing
     for sorting by (randid: random float, mtime: modification time, Built in SQL sorting).
 
 - Loader:
@@ -22,7 +22,7 @@ It has two main classes:
 Usage
 -----
 This file is imported as a package according to the following:
-    import listing.file_listing
+    import logic.file_listing
 """
 
 class Crawler:
@@ -35,20 +35,18 @@ class Crawler:
             :ivar dir_queue: Queue of directories to scan in FIFO order
         """
 
-    def __init__ (self, root_dir, db_path= ":memory:"):
+    def __init__ (self, db_path: str | Path= ":memory:"):
         self.database = sql.connect(db_path)
         self.loading_block = []
         self.dir_queue = queue.Queue()
-        self.dir_queue.put(root_dir)
         self._setup_db()
 
-    def crawl(self):
+    def crawl(self, root_dir: str | Path) -> None:
         """Goes through all directories in a queue, adding directories to the queue and
     files to the internal loading_block, to be inserted into the database once block is
-    large enough to minimize disk I/O.
+    large enough to minimize disk I/O."""
 
-                Args:
-                """
+        self.dir_queue.put(root_dir)
         file_count = 0
         while not self.dir_queue.empty():
             current_dir = self.dir_queue.get()
@@ -66,15 +64,12 @@ class Crawler:
                 print(f"Skipped {current_dir}: {e}")
         self._commit()
 
-    def _setup_db(self):
-        """Creates the database to be used to hold the scanned image paths.
-
-                Args:
-                """
+    def clear_db(self) -> None:
+        """Clears the table in the database to be used to hold the scanned image paths."""
         cursor = self.database.cursor()
         cursor.execute("""
-                DROP TABLE IF EXISTS image_paths    
-                """)
+        DROP TABLE IF EXISTS image_paths    
+        """)
         cursor.execute("""
         CREATE TABLE IF NOT EXISTS image_paths (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -85,12 +80,26 @@ class Crawler:
             )        
         """)
 
-    def _commit(self):
-        """Inserts all paths in the loading_block into the database, generating
-        a randid random float for each entry.
+    def _setup_db(self) -> None:
+        """Creates the table in the database to be used to hold the scanned image paths."""
 
-                Args:
-                """
+        cursor = self.database.cursor()
+        cursor.execute("""
+        CREATE TABLE IF NOT EXISTS image_paths (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            path TEXT UNIQUE NOT NULL,
+            folder TEXT,
+            randid REAL,
+            mtime REAL
+            )        
+        """)
+
+
+
+    def _commit(self) -> None:
+        """Inserts all paths in the loading_block into the database, generating
+        a randid random float for each entry."""
+
         if not self.loading_block:
             return
         rows = []
@@ -113,7 +122,7 @@ class Loader:
     def __init__(self, db_path= ":memory:"):
         self.database = sql.connect(db_path)
 
-    def total_db_loader(self):
+    def total_db_loader(self) -> list:
         """Reads and returns ALL paths in the database in bulk.
                 """
         cur = self.database.cursor()
@@ -126,12 +135,10 @@ class Loader:
 
     # TODO
 
-    def block_loader(self):
-        """Reads and returns paths in the database in blocks of size = N.
-                """
+    def block_loader(self) -> None:
+        """Reads and returns paths in the database in blocks of size = N."""
         pass
 
-    def filter(self):
-        """Filters entries in database when reading, by extension.
-                """
+    def filter(self) -> None:
+        """Filters entries in database when reading, by extension."""
         pass
