@@ -44,6 +44,10 @@ class RenderWindow(mglw.WindowConfig):
     gl_version = (3, 3)
 
     def __init__(self, queue, **kwargs):
+        """
+        Set queue, essential since class is limited to running
+        on a subprocess, and image deque, for two-way navigation.
+        """
         super().__init__(**kwargs)
         self.queue = queue
         self.images = None
@@ -54,7 +58,10 @@ class RenderWindow(mglw.WindowConfig):
     # Public API
 
     def load_images(self):
-        """Place images in a double ended queue and display first image"""
+        """
+        Place images in a deque, for two-way navigation and display first
+        image.
+        """
         self.images = deque(
             [Path(p) for p in Loader(DATABASE_FILE).total_db_loader()]
         )
@@ -68,6 +75,10 @@ class RenderWindow(mglw.WindowConfig):
         Cycle textures backwards with LEFT_ARROW.
         End slideshow with LETTER_Q.
         """
+        # TODO Remove IFs, implement function dict.
+        # key_bindings_dict = {
+        #
+        # }
         if key == self.wnd.keys.RIGHT and action == self.wnd.keys.ACTION_PRESS:
             self.images.rotate(1)
             self._set_texture(self.images[0])
