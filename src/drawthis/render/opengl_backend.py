@@ -9,9 +9,10 @@ import numpy as np
 from PIL import UnidentifiedImageError, Image
 from moderngl_window.context.base import KeyModifiers
 
-from drawthis import Loader, parse_shader
 from drawthis.app.constants import DATABASE_FILE
+from drawthis.logic.file_listing import Loader
 from drawthis.utils.logger import logger
+from drawthis.utils.shader_parser import parse_shader
 
 """
 OpenGL Backend for Draw-This.

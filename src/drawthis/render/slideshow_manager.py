@@ -1,3 +1,6 @@
+from drawthis.gui.state import Session
+
+
 class SlideshowManager:
     """
     High-level controller for slideshow backends.
@@ -24,7 +27,7 @@ class SlideshowManager:
     def __init__(self):
         pass
 
-    def start(self):
+    def start(self, session: Session):
         pass
 
     def stop(self):

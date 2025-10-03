@@ -1,7 +1,6 @@
 import tkinter as tk
 from tkinter import filedialog
 
-from drawthis import Model, View, start_slideshow_ogl
 from drawthis.app.constants import START_FOLDER
 from drawthis.app.signals import (
     folder_added,
@@ -10,7 +9,10 @@ from drawthis.app.signals import (
     session_started,
     session_ended,
 )
+from drawthis.gui.model import Model
+from drawthis.gui.tkinter_gui import View
 from drawthis.render import SlideshowManager
+from drawthis.render import start_slideshow_ogl
 from drawthis.utils.logger import logger
 from drawthis.utils.subprocess_queue import SignalQueue
 
@@ -35,19 +37,19 @@ This file is imported by Main as a package according to the following:
 
 
 class Viewmodel:
-    def __init__(self):
-        self.model = Model()
-        self.view = View(self)
+    def __init__(self, gui=None, state=None):
+        self.model = state or Model()
+        self.view = gui or View(self)
         self.signal_queue = SignalQueue()
         self.slideshow = SlideshowManager()
 
         self._tk_folders = [
             (folder, tk.BooleanVar(value=enabled))
-            for folder, enabled in self.model.session.folders.all()
+            for folder, enabled in self.model.session.folders.all.items()
         ]
-        self._tk_timers = self.model.session.timers.all()
+        self._tk_timers = self.model.session.timers.all
 
-        self._subscribe_to_signals()
+        # self._subscribe_to_signals()
 
     # Public API
 
@@ -70,19 +72,17 @@ class Viewmodel:
             :param new_timer: Duration in seconds selected by the user.
         """
         timer = new_timer.get()
-        if (
-            timer == ""
-            or timer == 0
-            or timer in self.model.session.timers.all()
-        ):
+        if timer == "":
             return
-
-        self.model.add_timer(int(new_timer.get()))
+        try:
+            self.model.add_timer(int(new_timer.get()))
+        except ValueError:
+            logger.warning(f"{timer} is an Invalid timer value")
 
     def add_folder(self) -> None:
         """Ask user for a folder and add folder if not already present."""
         folder_path = filedialog.askdirectory(initialdir=START_FOLDER)
-        if not folder_path or folder_path in self.model.session.folders.all():
+        if not folder_path or folder_path in self.model.session.folders.all:
             return
 
         self.model.add_folder(folder_path)
@@ -101,9 +101,9 @@ class Viewmodel:
 
     def sync_selected_timer(self) -> None:
         """Update timer selected status in model"""
-        self.model.selected_timer = self.view.delay_var.get()
+        self.model.set_selected_timer(self.view.delay_var.get())
 
-    def start_slideshow_with_manager(self) -> None:
+    def start_slideshow(self) -> None:
         """
         Start a new slideshow session using the slideshow manager.
 
@@ -118,7 +118,7 @@ class Viewmodel:
         if self.slideshow.is_running:
             return
         else:
-            self.slideshow.start()
+            self.slideshow.start(self.model.session.copy())
             self.model.save_session()
 
     # Accessors
@@ -146,7 +146,7 @@ class Viewmodel:
     @property
     def last_timer(self) -> int:
         """Returns last used timer"""
-        return self.model.last_session.get("selected_timer", 0)
+        return self.model.last_session.selected_timer
 
     # Private helpers
 
@@ -168,14 +168,14 @@ class Viewmodel:
         logger.info("Widget deleted.")
 
     def _on_timer_changed(self, _) -> None:
-        self.tk_timers = self.model.timers
-        self.view.refresh_timer_gui(self.model.timers)
+        self.tk_timers = self.model.session.timers.all
+        self.view.refresh_timer_gui(self.model.session.timers.all)
         logger.info("Timer changed.")
 
     def _on_folder_added(self, _, folder_path) -> None:
         self.tk_folders = [
             (item[0], tk.BooleanVar(value=item[1]))
-            for item in self.model.folders.items()
+            for item in self.model.session.folders.all.items()
         ]
         self.view.add_folder_gui(
             folder=folder_path, enabled=tk.BooleanVar(value=True)

@@ -2,8 +2,8 @@ import os
 import subprocess
 import tempfile
 
-from drawthis import Loader
 from drawthis.app.constants import DATABASE_FILE
+from drawthis.logic.file_listing import Loader
 
 """
 FEH Backend for Draw-This.
