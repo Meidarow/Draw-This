@@ -1,6 +1,8 @@
 import json
 import pathlib as path
 
+from drawthis.gui.model import Session
+
 """
 Persistence manager for Draw-This.
 
@@ -37,26 +39,24 @@ class SettingsManager:
 
     # Public API:
 
-    def read_config(self) -> dict[str, list | int]:
+    def read_config(self) -> Session:
         """Parse file and restores previous session's final values."""
         if not self.config_file.exists():
             self.config_file.touch()
-
         try:
             with open(self.config_file, "r", encoding="utf-8") as config:
                 read_data = json.load(config)
         except (json.JSONDecodeError, FileNotFoundError):
             read_data = {"folders": [], "timers": [], "selected_timer": 0}
 
-        return read_data
+        return Session.from_dict(read_data)
 
-    def write_config(self, data: dict[str, list | int]) -> None:
+    def write_config(self, session: Session) -> None:
         """Create file and stores the current session's values."""
-
         try:
             with open(
                 file=self.config_file, mode="w", encoding="utf-8"
             ) as config:
-                json.dump(obj=data, fp=config, indent=4)
+                json.dump(obj=session.to_dict(), fp=config, indent=4)
         except FileNotFoundError:
             return
