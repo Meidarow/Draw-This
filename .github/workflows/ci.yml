@@ -75,15 +75,6 @@ jobs:
           poetry run coverage report --fail-under=20
 
       # -------------------------------------------------------------
-      # 4️⃣  Upload coverage (optional)
-      # -------------------------------------------------------------
-      - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v4
-        with:
-          files: coverage.xml
-          fail_ci_if_error: true
-
-      # -------------------------------------------------------------
       # 5️⃣  Generate and commit coverage badge (optional)
       # -------------------------------------------------------------
       - name: Generate coverage badge
