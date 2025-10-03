@@ -1,61 +1,197 @@
+# test_build_row.py
+
 import os
+import random
+import sys
 import tempfile
+import unittest
+from typing import Callable, NamedTuple, Any
+from unittest import mock
 
-import pytest
-
-from drawthis.logic.file_listing import Crawler
-
-
-@pytest.fixture
-def temp_image_dir(tmp_path):
-    # Create a fake folder with some "images"
-    for i in range(3):
-        (tmp_path / f"test_{i}.jpg").write_text("fake image content")
-    return tmp_path
+from drawthis.logic.file_listing import build_row, ImageRow
 
 
-def test_crawl_inserts_files_into_db(temp_image_dir):
-    # Run crawler
-    c = Crawler(str(temp_image_dir))
-    c.crawl()
-
-    cur = c.database.cursor()
-    cur.execute("SELECT COUNT(*) FROM image_paths")
-    row_count = cur.fetchone()[0]
-
-    # database should contain all 3 files
-    assert row_count == 3
-
-    # random values should all be in [0,1)
-    cur.execute("SELECT randid FROM image_paths")
-    values = [row[0] for row in cur.fetchall()]
-    assert all(0 <= v < 1 for v in values)
-
-@pytest.mark.integration
-def test_crawler_on_real_folder():
-    db_fd, db_path = tempfile.mkstemp(suffix=".sqlite")
-    folder = "/mnt/Storage/Art/Resources"  # your real folder
-    c = Crawler(folder, db_path=db_path)
-    c.crawl()
-
-    cur = c.database.cursor()
-    cur.execute("SELECT COUNT(*) FROM image_paths")
-    assert cur.fetchone()[0] > 0
-
-    cur.execute("SELECT randid FROM image_paths")
-    assert all(0 <= row[0] < 1 for row in cur.fetchall())
-
-    cur.execute("SELECT path, folder, randid, mtime FROM image_paths LIMIT 5")
-    for row in cur.fetchall():
-        print(row)
-
-    cur.execute("SELECT COUNT(*) FROM image_paths")
-    total_rows = cur.fetchone()[0]
-    print("Total rows in DB:", total_rows)
+def make_fake_stat(**overrides):
+    """Create a minimal ``os.stat_result``‑like named‑tuple."""
+    Stat = NamedTuple(
+        "StatResult",
+        [
+            ("st_mode", int),
+            ("st_ino", int),
+            ("st_dev", int),
+            ("st_nlink", int),
+            ("st_uid", int),
+            ("st_gid", int),
+            ("st_size", int),
+            ("st_atime", float),
+            ("st_mtime", float),
+            ("st_ctime", float),
+        ],
+    )
+    defaults = dict(
+        st_mode=0o100644,
+        st_ino=1,
+        st_dev=1,
+        st_nlink=1,
+        st_uid=1000,
+        st_gid=1000,
+        st_size=0,
+        st_atime=1_600_000_000.0,
+        st_mtime=1_600_000_001.0,
+        st_ctime=1_600_000_002.0,
+    )
+    defaults.update(overrides)
+    return Stat(**defaults)
 
 
+def deterministic_random(seed: int = 0) -> Callable[[], float]:
+    rng = random.Random(seed)
+    return rng.random
 
-    # cleanup
-    c.database.close()
-    os.close(db_fd)
-    os.remove(db_path)
+
+class TestBuildRow(unittest.TestCase):
+    # ------------------------------------------------------------------
+    # 1️⃣  Basic contract – return type, fields, deterministic randid
+    # ------------------------------------------------------------------
+    def test_return_type_and_fields(self):
+        fake_stat = make_fake_stat(st_mtime=1234567890.0)
+        fake_stat_fn = lambda _: fake_stat
+
+        with mock.patch(
+            "drawthis.logic.file_listing.random.random",
+            deterministic_random(42),
+        ):
+            row = build_row(file_path="some/file.jpg", stat_fn=fake_stat_fn)
+
+        self.assertEqual(set(ImageRow._fields), set(row._fields))
+        self.assertIsInstance(row, ImageRow)
+
+        expected_randid = deterministic_random(42)()
+        self.assertAlmostEqual(row.randid, expected_randid)
+
+    # ------------------------------------------------------------------
+    # 2️⃣  Path handling – a matrix of interesting path shapes
+    # ------------------------------------------------------------------
+    @staticmethod
+    def path_cases():
+        """Yield (input_path, expected_folder)."""
+        cases = [
+            ("foo.jpg", ""),
+            ("dir/subdir/image.png", "dir/subdir"),
+            ("/abs/path/to/file.tiff", "/abs/path/to"),
+            ("unicode/файл.jpeg", "unicode"),
+            ("trailing/slash/", "trailing/slash"),
+            ("./relative/../weird/../file.gif", "weird/../file.gif"),
+        ]
+        # Windows‑style path – only relevant when the test runs on Windows.
+        # On POSIX platforms the back‑slashes are just characters, so the
+        # expected folder is '' (empty string).
+        if sys.platform.startswith("win"):
+            cases.append(("C:\\Windows\\Path\\file.bmp", "C:\\Windows\\Path"))
+        else:
+            cases.append(("C:\\Windows\\Path\\file.bmp", ""))
+        return cases
+
+    def test_path_derivation(self):
+        fake_stat = make_fake_stat()
+        fake_stat_fn = lambda _: fake_stat
+
+        for inp, exp_folder in self.path_cases():
+            with self.subTest(path=inp):
+                row = build_row(file_path=inp, stat_fn=fake_stat_fn)
+
+                self.assertEqual(row.file_path, inp)
+                self.assertEqual(row.folder, os.path.dirname(inp))
+                self.assertEqual(row.folder, exp_folder)
+
+    # ------------------------------------------------------------------
+    # 3️⃣  Stat handling – verify that ``mtime`` comes from the stat result
+    # ------------------------------------------------------------------
+    def test_mtime_propagated(self):
+        fake_stat = make_fake_stat(st_mtime=1_234_567_890.0)
+        fake_stat_fn = lambda _: fake_stat
+
+        row = build_row(file_path="any.jpg", stat_fn=fake_stat_fn)
+
+        self.assertEqual(row.mtime, fake_stat.st_mtime)
+
+    # ------------------------------------------------------------------
+    # 4️⃣  Default behaviour – when ``stat_fn`` is omitted
+    # ------------------------------------------------------------------
+    def test_default_uses_os_stat(self):
+        """If no ``stat_fn`` is supplied the function must call ``os.stat``."""
+        with tempfile.NamedTemporaryFile(suffix=".png") as tmp:
+            tmp.write(b"hello world")
+            tmp.flush()
+
+            # Patch the *os.stat* that build_row imported at definition time.
+            # The default argument is already bound, so we verify the returned
+            # value comes from the mock rather than asserting a call count.
+            with mock.patch(
+                "drawthis.logic.file_listing.os.stat"
+            ) as mock_stat:
+                mock_stat.return_value = make_fake_stat(st_mtime=42.0)
+
+                row = build_row(file_path=tmp.name)  # no stat_fn argument
+
+                self.assertEqual(row.mtime, 42.0)
+
+    # ------------------------------------------------------------------
+    # 5️⃣  Random‑id edge cases – type and range
+    # ------------------------------------------------------------------
+    def test_randid_is_float_between_0_and_1(self):
+        fake_stat = make_fake_stat()
+        fake_stat_fn = lambda _: fake_stat
+
+        for _ in range(20):
+            row = build_row(file_path="x.jpg", stat_fn=fake_stat_fn)
+            self.assertIsInstance(row.randid, float)
+            self.assertGreaterEqual(row.randid, 0.0)
+            self.assertLess(row.randid, 1.0)
+
+    # ------------------------------------------------------------------
+    # 6️⃣  Error handling – invalid ``stat_fn`` or missing ``st_mtime``
+    # ------------------------------------------------------------------
+    def test_invalid_stat_fn_raises(self):
+        with self.assertRaises(TypeError):
+            # noinspection PyTypeChecker
+            build_row(file_path="a.jpg", stat_fn="not a function")
+
+    def test_missing_mtime_attribute(self):
+        class IncompleteStat:
+            pass
+
+        with self.assertRaises(AttributeError):
+            build_row(file_path="b.jpg", stat_fn=lambda _: IncompleteStat())
+
+    # ------------------------------------------------------------------
+    # 7️⃣  No side‑effects – ensure the function does not touch the filesystem
+    # ------------------------------------------------------------------
+    def test_no_file_io_when_custom_stat_fn_used(self):
+        fake_stat = make_fake_stat(st_mtime=99.0)
+        fake_stat_fn = mock.Mock(return_value=fake_stat)
+
+        with mock.patch("drawthis.logic.file_listing.os.stat") as mock_os_stat:
+            row = build_row(file_path="dummy.jpg", stat_fn=fake_stat_fn)
+
+            mock_os_stat.assert_not_called()
+            fake_stat_fn.assert_called_once_with("dummy.jpg")
+            self.assertEqual(row.mtime, 99.0)
+
+    # ------------------------------------------------------------------
+    # 8️⃣  Type‑checking sanity – ensure mypy sees the correct signatures
+    # ------------------------------------------------------------------
+    def test_type_hints_exist(self):
+        from inspect import signature
+
+        sig = signature(build_row)
+        self.assertEqual(sig.parameters["file_path"].annotation, str)
+        self.assertTrue(
+            sig.parameters["stat_fn"].annotation == Callable
+            or sig.parameters["stat_fn"].annotation == Callable[[str], Any]
+        )
+        self.assertEqual(sig.return_annotation, ImageRow)
+
+
+if __name__ == "__main__":
+    unittest.main()
