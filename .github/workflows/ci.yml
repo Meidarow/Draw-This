@@ -1,0 +1,79 @@
+# .github/workflows/ci.yml
+name: CI
+
+on:
+  push:
+    branches: [ main, dev ]          # run on pushes to both main branches
+  pull_request:
+    branches: [ main, dev ]          # and on PRs targeting them
+  workflow_dispatch: {}               # allow manual runs
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    # -------------------------------------------------------------
+    # 1️⃣  Set up Python & cache Poetry’s virtual‑env
+    # -------------------------------------------------------------
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Cache Poetry virtualenv
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pypoetry
+          key: ${{ runner.os }}-poetry-${{ hashFiles('pyproject.toml', 'poetry.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-poetry-
+
+      # -------------------------------------------------------------
+      # 2️⃣  Install Poetry & project dependencies
+      # -------------------------------------------------------------
+      - name: Install Poetry
+        run: |
+          python -m pip install --upgrade pip
+          pip install poetry
+
+      - name: Install project (including dev deps)
+        run: poetry install --with dev
+
+      # -------------------------------------------------------------
+      # 3️⃣  Run tests with coverage
+      # -------------------------------------------------------------
+      - name: Run tests with coverage
+        working-directory: ./Draw-This
+        run: |
+          poetry run coverage run -m pytest -v
+          poetry run coverage xml                     # creates coverage.xml
+          poetry run coverage report --fail-under=20
+
+      # -------------------------------------------------------------
+      # 4️⃣  Upload coverage (optional)
+      # -------------------------------------------------------------
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          files: ./Draw-This/coverage.xml
+          fail_ci_if_error: true
+
+      # -------------------------------------------------------------
+      # 5️⃣  Generate and commit coverage badge (optional)
+      # -------------------------------------------------------------
+      - name: Generate coverage badge
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          poetry run pip install genbadge[all]
+          poetry run genbadge coverage -i ./Draw-This/coverage.xml -o ./Draw-This/coverage-badge.svg
+
+      - name: Commit badge back to repo
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "chore: update coverage badge"
+          file_pattern: Draw-This/coverage-badge.svg
