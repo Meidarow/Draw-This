@@ -81,6 +81,7 @@ jobs:
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: |
           poetry run pip install genbadge[all]
+          ls -la coverage.xml
           poetry run genbadge coverage -i coverage.xml -o coverage-badge.svg
 
       - name: Commit badge back to repo
