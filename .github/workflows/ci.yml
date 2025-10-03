@@ -69,7 +69,6 @@ jobs:
       # 3️⃣  Run tests with coverage
       # -------------------------------------------------------------
       - name: Run tests with coverage
-        working-directory: ./Draw-This
         run: |
           poetry run coverage run -m pytest -v
           poetry run coverage xml                     # creates coverage.xml
@@ -81,7 +80,7 @@ jobs:
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v4
         with:
-          files: ./Draw-This/coverage.xml
+          files: coverage.xml
           fail_ci_if_error: true
 
       # -------------------------------------------------------------
@@ -91,11 +90,11 @@ jobs:
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: |
           poetry run pip install genbadge[all]
-          poetry run genbadge coverage -i ./Draw-This/coverage.xml -o ./Draw-This/coverage-badge.svg
+          poetry run genbadge coverage -i coverage.xml -o coverage-badge.svg
 
       - name: Commit badge back to repo
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
           commit_message: "chore: update coverage badge"
-          file_pattern: Draw-This/coverage-badge.svg
+          file_pattern: coverage-badge.svg
