@@ -55,7 +55,7 @@ class View:
         var = enabled
 
         def on_folder_change(*args) -> None:
-            self._viewmodel.sync_folder(folder, var.get())
+            self._viewmodel.sync_folder(folder)
 
         var.trace_add(mode="write", callback=on_folder_change)
         self._build_widget(

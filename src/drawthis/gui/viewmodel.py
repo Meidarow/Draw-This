@@ -2,7 +2,7 @@ import tkinter as tk
 from tkinter import filedialog
 
 from drawthis import Model, View, start_slideshow_ogl
-from drawthis.app.constants import START_FOLDER, DATABASE_FILE
+from drawthis.app.constants import START_FOLDER
 from drawthis.app.signals import (
     folder_added,
     timer_changed,
@@ -10,6 +10,7 @@ from drawthis.app.signals import (
     session_started,
     session_ended,
 )
+from drawthis.render import SlideshowManager
 from drawthis.utils.logger import logger
 from drawthis.utils.subprocess_queue import SignalQueue
 
@@ -38,12 +39,13 @@ class Viewmodel:
         self.model = Model()
         self.view = View(self)
         self.signal_queue = SignalQueue()
+        self.slideshow = SlideshowManager()
 
         self._tk_folders = [
             (folder, tk.BooleanVar(value=enabled))
-            for folder, enabled in self.model.folders.items()
+            for folder, enabled in self.model.session.folders.all()
         ]
-        self._tk_timers = self.model.timers
+        self._tk_timers = self.model.session.timers.all()
 
         self._subscribe_to_signals()
 
@@ -68,7 +70,11 @@ class Viewmodel:
             :param new_timer: Duration in seconds selected by the user.
         """
         timer = new_timer.get()
-        if timer == "" or timer == 0 or timer in self.model.timers:
+        if (
+            timer == ""
+            or timer == 0
+            or timer in self.model.session.timers.all()
+        ):
             return
 
         self.model.add_timer(int(new_timer.get()))
@@ -76,32 +82,44 @@ class Viewmodel:
     def add_folder(self) -> None:
         """Ask user for a folder and add folder if not already present."""
         folder_path = filedialog.askdirectory(initialdir=START_FOLDER)
-        if not folder_path or folder_path in self.model.folders:
+        if not folder_path or folder_path in self.model.session.folders.all():
             return
 
         self.model.add_folder(folder_path)
 
     def delete_widget(self, widget_type: str, value: str | int) -> None:
         """Remove widget of [value] from [widget_type] dict"""
-        self.model.delete_item(widget_type=widget_type, value=value)
+        handlers = {
+            "folder": lambda v: self.model.delete_folder(v),
+            "timer": lambda v: self.model.delete_timer(v),
+        }
+        handlers.get(widget_type, lambda v: None)(value)
 
-    def sync_folder(self, key: str, value: bool) -> None:
+    def sync_folder(self, key: str) -> None:
         """Update folder selected status in model"""
-        self.model.set_folder_enabled(folder_path=key, enabled=value)
+        self.model.session.folders.toggle(path=key)
 
     def sync_selected_timer(self) -> None:
         """Update timer selected status in model"""
         self.model.selected_timer = self.view.delay_var.get()
 
-    def start_slideshow(self) -> None:
-        """Delegate slideshow operation to selected BACKEND"""
-        if self.model.session_is_running:
+    def start_slideshow_with_manager(self) -> None:
+        """
+        Start a new slideshow session using the slideshow manager.
+
+        This method:
+        - Starts the slideshow lifecycle (via the configured backend).
+        - Persists current session parameters to the model.
+        - Ensures one slideshow session at a time (no-op if already running).
+
+        Assumptions:
+        - The image database has already been populated.
+        """
+        if self.slideshow.is_running:
             return
-        self._recalculate_image_database()
-        self.model.save_session()
-        BACKEND_FUNCTION(
-            queue=self.signal_queue.queue, **self.slideshow_parameters
-        )
+        else:
+            self.slideshow.start()
+            self.model.save_session()
 
     # Accessors
 
@@ -114,13 +132,6 @@ class Viewmodel:
     def tk_folders(self, value: list[tuple[str, tk.BooleanVar]]) -> None:
         """Set the list of folders, with Tkinter Vars."""
         self._tk_folders = value
-
-    @property
-    def enabled_folders(self) -> list[str]:
-        """Return list of enabled folders"""
-        return [
-            folder for folder, enabled in self.model.folders.items() if enabled
-        ]
 
     @property
     def tk_timers(self) -> list[int]:
@@ -137,21 +148,7 @@ class Viewmodel:
         """Returns last used timer"""
         return self.model.last_session.get("selected_timer", 0)
 
-    @property
-    def slideshow_parameters(self):
-        """Return dict of parameters passed into backend function"""
-        return {
-            "selected_timer": self.model.selected_timer,
-        }
-
     # Private helpers
-
-    def _recalculate_image_database(self):
-        # If folders changed from last run, repopulate DB
-        if not self.enabled_folders:
-            return
-        if self.model.should_recalculate():
-            crawl_folders_iteratively(self.enabled_folders)
 
     def _subscribe_to_signals(self):
         folder_added.connect(self._on_folder_added)
@@ -192,12 +189,3 @@ class Viewmodel:
     def _on_session_ended(self, _) -> None:
         self.model.session_is_running = False
         logger.info("Session ended.")
-
-
-def crawl_folders_iteratively(folders):
-    from drawthis import Crawler
-
-    crawler = Crawler(DATABASE_FILE)
-    crawler.clear_db()
-    for folder in folders:
-        crawler.crawl(folder)

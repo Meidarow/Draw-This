@@ -2,9 +2,10 @@ from dataclasses import dataclass, field
 
 from drawthis.app.config import SettingsManager
 from drawthis.app.signals import widget_deleted, timer_changed, folder_added
+from drawthis.logic import DatabaseWriter
 
 """
-Model to keep current state for Draw-This.
+Model to keep session state for Draw-This.
 
 This module defines the Model and interface with persistence module.
 It has two main classes:
@@ -143,6 +144,7 @@ class Model:
 
     def __init__(self):
         self._settings_manager = SettingsManager()
+        self._database_writer = DatabaseWriter()
         self.session = self.last_session = self._settings_manager.read_config()
 
     # Public API:
@@ -186,10 +188,19 @@ class Model:
 
     def recalculate_if_should_recalculate(self) -> None:
         """Recalculates database if folders changed from last session."""
-        previous_folders = self.last_session.folders.enabled()
-        selected_folders = self.session.folders.enabled()
-        if selected_folders != previous_folders:
-            if not selected_folders:
-                return
-            # TODO impolement clean crawler call here
-            # OLD : crawl_folders_iteratively(selected_folders)
+        current_folders = set(self.session.folders.enabled())
+        if not current_folders:
+            return
+        previous_folders = set(self.last_session.folders.enabled())
+        if current_folders == previous_folders:
+            return
+        # added_folders = current_folders - previous_folders
+        # deleted_folders = previous_folders - current_folders
+        # TODO implement clean crawler call here
+        # OBS: Who determines if there are folders to add remove from DB?
+        # maybe pass both folder changes, folders added/folders removed
+        # The following logic probably belongs here in model:
+        # if deleted_folders:
+        #   self._database_writer.remove(deleted_folders)
+        # if added_folders:
+        #   self._database_writer.add(added_folders)

@@ -83,14 +83,14 @@ class DatabaseWriter:
         commit_block_size=None,
         clear_database_fn=None,
         setup_schema_fn=None,
-        commit_rows_fn: MassCommitFN = None,
+        insert_rows_fn: MassCommitFN = None,
     ):
         self.database = db_conn or sql.connect(
             db_path, check_same_thread=False
         )
         self.setup_schema = setup_schema_fn or self._setup_schema_sqlite3
         self.clear_database = clear_database_fn or self._clear_database_sqlite3
-        self.commit_rows = commit_rows_fn or self._commit_sqlite3
+        self.insert_rows = insert_rows_fn or self._insert_rows_sqlite3
         self.commit_block_size = commit_block_size or self.COMMIT_BLOCK_SIZE
 
         self.loading_block: list[str] = []
@@ -114,6 +114,15 @@ class DatabaseWriter:
                 self.database.close()
                 self._is_closed = True
 
+    def add_rows(self):
+        pass
+
+    def remove_rows(self):
+        pass
+
+    def update_seen(self):
+        pass
+
     def flush(self, prepare_rows_fn: Callable = None) -> tuple[int, int]:
         """
         Inserts all paths in the loading_block into the database,
@@ -130,7 +139,7 @@ class DatabaseWriter:
         attempted = len(batch)
         inserted = 0
         try:
-            inserted = self.commit_rows(prepare_rows(batch))
+            inserted = self.insert_rows(prepare_rows(batch))
         except Exception as e:
             # TODO: fail-fast mode only for development.
             # Switch to skip+log strategy in production.
@@ -148,6 +157,9 @@ class DatabaseWriter:
         return attempted, inserted
 
     def add_path(self, path: str | Path) -> None:
+        """
+        Insert path in batch, write to DB if threshold reached.
+        """
         if isinstance(path, Path):
             path = str(path)
         if not isinstance(path, str):
@@ -186,7 +198,7 @@ class DatabaseWriter:
         )
         cursor.close()
 
-    def _commit_sqlite3(self, rows: Iterable[tuple]) -> int:
+    def _insert_rows_sqlite3(self, rows: Iterable[tuple]) -> int:
         cursor = self.database.cursor()
         cursor.executemany(
             """
@@ -223,7 +235,8 @@ def gather_rows(file_batch, row_fn: Callable = None) -> Iterable[ImageRow]:
             raise
 
 
-def build_row(file_path: str, stat_fn: Callable = os.stat) -> ImageRow:
+def build_row(file_path: str, stat_fn: Callable = None) -> ImageRow:
+    stat_fn = stat_fn or os.stat
     return ImageRow(
         file_path=file_path,
         folder=os.path.dirname(file_path),
@@ -232,16 +245,16 @@ def build_row(file_path: str, stat_fn: Callable = os.stat) -> ImageRow:
     )
 
 
-# TODO Implement signaling for Crawl start/end
-
-
 class Crawler:
     """
-    Goes through all directories in a queue, adding directories to the
-    queue and files to a SQLite database.
+    Walks directories recursively and yields file info objects.
+    Guarantees:
+    - Duplicate safe (Bloom filter)
+    - Recursion safe (symlinks handled)
+    - Skips inaccessible files gracefully
 
-        Attributes:
-            :ivar dir_queue: Queue of directories to scan in FIFO order
+    Compromise:
+    -May skip directories due to Bloom filter false positives (rare)
     """
 
     def __init__(
@@ -252,14 +265,13 @@ class Crawler:
         self.on_start = on_start
         self.on_end = on_end
 
+    # TODO Major refactor next:
     def crawl(
         self,
         root_dir: str | Path,
-        storage: DatabaseWriter,
         dir_access_fn,
-    ) -> None:
-        """Return every file in a folder recursively."""
-        storage: DatabaseWriter = storage
+    ) -> Iterable[os.DirEntry]:
+        """Yield every file in a folder iteratively."""
         dir_queue: queue.Queue = queue.Queue()
         dir_access_fn = dir_access_fn or os.scandir
         dir_queue.put(root_dir)
@@ -271,10 +283,13 @@ class Crawler:
                     if dir_entry.is_dir():
                         dir_queue.put(dir_entry.path)
                         continue
-                    storage.add_path(path=dir_entry)
+                    yield dir_entry
             except (PermissionError, FileNotFoundError, NotADirectoryError):
                 logger.warning(f"Skipped {current_dir}", exc_info=True)
         self.on_end()
+
+    def clean_up(self):
+        pass
 
 
 class Loader:
@@ -298,13 +313,3 @@ class Loader:
         """
         )
         return [row[0] for row in cur.fetchall()]
-
-    # TODO
-
-    def block_loader(self) -> None:
-        """Reads and returns paths in the database in blocks of size = N."""
-        pass
-
-    def filter(self) -> None:
-        """Filters entries in database when reading, by extension."""
-        pass
