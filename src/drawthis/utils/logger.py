@@ -1,14 +1,16 @@
-import pathlib as path
-import sys
+import logging
+from logging.handlers import RotatingFileHandler
+
+from drawthis.app.constants import LOG_FOLDER
 
 """
-Simple logging utility meant to be replaced by the built-in python logger. [SOON TO BE DEPRECATED]
+Logger singleton.
 
 This module defines the logger and it's functionality.
 It has one class:
 
 - Logger:
-    Takes stdout and stderr and redirects them to a file.
+Rotates a file based on file size, logs to stream also.
 
 Usage
 -----
@@ -16,18 +18,22 @@ This file is imported by Viewmodel as a package according to the following:
     from drawthis import Logger
 """
 
-LOG_FOLDER = path.Path("/tmp/draw_this.log")
+logger = logging.getLogger("drawthis")
+logger.setLevel(logging.DEBUG)
 
+file_handler = RotatingFileHandler(LOG_FOLDER, encoding="utf-8")
+file_handler.setLevel(level=logging.DEBUG)
+file_handler.setFormatter(
+    fmt=logging.Formatter(
+        "%(asctime)s [%(levelname)s] (%(name)s): (%(message)s)"
+    )
+)
+stream_handler = logging.StreamHandler()
+stream_handler.setLevel(level=logging.WARNING)
+stream_handler.setFormatter(
+    fmt=logging.Formatter("[%(levelname)s] (%(name)s): (%(message)s)")
+)
 
-class Logger:
-
-    def __init__(self):
-        self.log_file = None
-
-    def start_log(self) -> None:
-        self.log_file = open(LOG_FOLDER, "w")
-        sys.stdout = self.log_file
-        sys.stderr = self.log_file
-
-    def end_log(self) -> None:
-        self.log_file.close()
+if not logger.handlers:
+    logger.addHandler(file_handler)
+    logger.addHandler(stream_handler)
