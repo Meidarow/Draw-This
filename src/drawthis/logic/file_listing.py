@@ -1,15 +1,14 @@
 import os
 import queue
-import random
-import sqlite3 as sql
+import sqlite3
 import threading
 from pathlib import Path
 from typing import (
     Iterable,
     Callable,
-    Any,
     Generator,
     Optional,
+    Any,
 )
 
 from pybloom_live import BloomFilter
@@ -60,145 +59,263 @@ class CommitError(DatabaseWriterError):
 
 
 class SQLite3Backend(DatabaseBackend):
-    # TODO Add schema versioning and migration
-    DB_SCHEMA = """
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        path TEXT UNIQUE NOT NULL,
-        folder TEXT,
-        randid REAL,
-        mtime REAL
-        """
-    migration = {}
+    """
+    SQLite3 implementation of the Draw-This database backend.
 
-    def __init__(self, db_path: str = None):
+    Handles schema setup, insertion, deletion, and flag updates
+    for file metadata. Can be used as a context manager:
+
+    Assumptions:
+        Assumes all paths are normalised as absolute paths.
+
+    Usage:
+        with SQLite3Backend("~/.config/drawthis.db") as db:
+            db.insert_rows([...])
+    """
+
+    DB_SCHEMA = """
+        id      INTEGER PRIMARY KEY AUTOINCREMENT,
+        path    TEXT UNIQUE NOT NULL,
+        randid  REAL,
+        mtime   REAL,
+        seen    BOOLEAN DEFAULT 0
+    """
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if self.database:
+            try:
+                self.database.close()
+            finally:
+                self.database = None
+
+    def __init__(
+        self,
+        db_path: Optional[str] = None,
+        connection: Optional[sqlite3.Connection] = None,
+        on_insert: Callable = None,
+        on_remove: Callable = None,
+        on_mark_seen: Callable = None,
+    ) -> None:
         self.db_path = db_path
-        self.database: sql.Connection | None = None
+        if db_path is None and connection is None:
+            raise ValueError(
+                "Must provide either db_path or an open sqlite3.Connection"
+            )
+        self.database = connection or sqlite3.connect(self.db_path)
+        self.on_insert = on_insert
+        self.on_remove = on_remove
+        self.on_mark_seen = on_mark_seen
+
+        self.setup_schema()
+        self._configure_connection()
 
     def initialize(self) -> None:
-        self.database = sql.connect(self.db_path)
+        """Open the connection and ensure the schema exists."""
+        self.setup_schema()  # create table if it isn’t there
 
     def clear_all(self) -> None:
-        """Clear the table in the database used to hold image paths."""
-        cursor = self.database.cursor()
-        cursor.execute("""DROP TABLE IF EXISTS image_paths""")
-        cursor.close()
+        """Drop the table – caller should call `setup_schema` afterwards."""
+        query = "DROP TABLE IF EXISTS image_paths"
+        with self.database:
+            self._execute(query)
 
-    def setup_schema(self, db_schema: str = None) -> None:
-        """Initialize the table in the database used to hold image paths."""
-        db_schema = db_schema or self.DB_SCHEMA
-        cursor = self.database.cursor()
-        cursor.execute(
-            f"""CREATE TABLE IF NOT EXISTS image_paths ({db_schema})"""
-        )
-        cursor.close()
+    def setup_schema(self, db_schema: str | None = None) -> None:
+        """Create `image_paths` with the supplied (or default) schema."""
+        schema = db_schema or self.DB_SCHEMA
+        query = f"CREATE TABLE IF NOT EXISTS image_paths ({schema})"
+        with self.database:
+            self._execute(query)
 
-    def insert_rows(self, rows: Iterable[tuple]) -> int:
-        cursor = self.database.cursor()
-        cursor.executemany(
-            """
-            INSERT OR IGNORE INTO
-            image_paths(path, folder, randid, mtime)
-             VALUES (?, ?, ?, ?)
-            """,
-            rows,
-        )
-        # NOTE: SELECT changes() is statement-local, safe after executemany
-        cursor.execute("SELECT changes()")
-        inserted = cursor.fetchone()[0]
-        cursor.close()
-        return inserted
+    def insert_rows(self, rows: Iterable[tuple[Any, ...]]) -> int:
+        with self.database:
+            self.database.executemany(
+                """
+                INSERT OR IGNORE INTO image_paths
+                    (path, randid, mtime)
+                VALUES (?, ?, ?)
+                """,
+                rows,
+            )
+            cur = self.database.execute("SELECT changes()")
+            inserted = cur.fetchone()
+        if self.on_insert:
+            self.on_insert()
+        return inserted[0] or 0
 
     def remove_rows(self, paths: Iterable[str]) -> int:
-        cursor = self.database.cursor()
-        cursor.execute()
-        cursor.close()
-        return 0
+        with self.database:
+            self.database.executemany(
+                """
+                DELETE FROM image_paths
+                WHERE path = ?
+                """,
+                [(p,) for p in paths],
+            )
+            cur = self.database.execute("SELECT changes()")
+            removed = cur.fetchone()
+        if self.on_remove:
+            self.on_remove()
+        return removed[0] or 0
 
-    def mark_seen(self, ids: Iterable[Any], seen: bool = True) -> None:
-        cursor = self.database.cursor()
-        cursor.execute()
-        cursor.close()
+    def mark_seen(self, paths: Iterable[str], seen: bool = True) -> int:
+        """
+        Set the `seen` flag for the supplied paths.
+        `paths` is an iterable of path strings.
+        """
+        with self.database:
+            self.database.executemany(
+                """
+                UPDATE image_paths
+                SET seen = ?
+                WHERE path = ?
+                """,
+                [(int(seen), p) for p in paths],
+            )
+            cur = self.database.execute("SELECT changes()")
+            marked = cur.fetchone()
+        if self.on_mark_seen:
+            self.on_mark_seen()
+        return marked[0] or 0
 
     def shuffle(self) -> None:
-        cursor = self.database.cursor()
-        cursor.execute()
-        cursor.close()
+        """
+        Assign a new random float in [0, 1) to the `randid` column of each row.
+        """
+        query = """
+            UPDATE image_paths
+            SET randid = ABS(RANDOM()) / 9223372036854775808.0
+        """
+        with self.database:
+            self._execute(query)
+
+    # Non-default backend methods
+
+    def count_rows(self) -> int:
+        cur = self._execute("SELECT COUNT(*) FROM image_paths")
+        return cur.fetchone()[0] or 0
+
+    def commit(self) -> None:
+        """Explicitly commit any pending transaction."""
+        try:
+            if self.database:
+                self.database.commit()
+        except sqlite3.DatabaseError as e:
+            raise CommitError("Failed to commit to database") from e
+
+    def _configure_connection(self):
+        self.database.execute("PRAGMA journal_mode = WAL;")
+        self.database.execute("PRAGMA synchronous = NORMAL;")
+        self.database.execute("PRAGMA temp_store = MEMORY;")
+        self.database.execute("PRAGMA foreign_keys = ON;")
+
+    def _execute(self, query: str, *params: Any) -> sqlite3.Cursor:
+        """Run a single statement with optional parameters."""
+        return self.database.execute(query, params)
 
 
 class DatabaseWriter:
     """
-    Wraps storage and provides methods to access and commit, as to keep API
-    consistent across storage methods and offer extensibility.
+    Orchestrates database operations and provides API to add and remove rows,
+    mark files as seen for session persistence and randomize the database.
 
     Handles:
-      - Schema setup / clearing
       - Batching paths before insert
       - Committing batches with file metadata (folder, mtime, random ID)
+      TODO Add filtering by file type
 
-    This class defaults to SQLite3, but testability hooks
-    (stat_fn, prepare_rows_fn, etc.) allow mocking the filesystem or row prep.
-    Adding additional database types can be done by overriding the database
-    connection (db_conn) and providing apropriate methods for manipulation.
-    # TODO onsider splitting into orchestration layer that can handle policy
+    Notes:
+        -This class is meant to handle ImageRow objects, the canonical
+         dataclass for the database layer of Draw-This.
+        -This class defaults to the SQLite 3 backend implementation, however it
+         is database agnostic. You may extend it by implementing a new
+         database according to the abstract class DatabaseBackend.
     """
-
-    COMMIT_BLOCK_SIZE = 1500
 
     def __init__(
         self,
-        db_path: str | Path = ":memory:",
-        db_conn=None,
-        commit_block_size=None,
+        db_path: PathLike = ":memory:",
+        batch_size=None,
         backend=None,
+        crawler=None,
     ):
-        self.database = db_conn or sql.connect(
-            db_path, check_same_thread=False
-        )
-        self.backend = backend or SQLite3Backend()
-        self.commit_block_size = commit_block_size or self.COMMIT_BLOCK_SIZE
+        self.backend = backend or SQLite3Backend(db_path)
+        self.crawler_class = crawler or Crawler
+        self.batch_size = batch_size or 1500
 
         self.loading_block: list[str] = []
         self.file_count = 0
         self._lock = threading.RLock()
         self._is_closed = False
 
-    def __enter__(self) -> "DatabaseWriter":
-        self._is_closed = False
-        return self
-
-    def __exit__(self, exc_type, exc, tb) -> None:
-        with self._lock:
-            try:
-                self._flush()
-            except CommitError:
-                logger.error("Flush failed on exit.", exc_info=True)
-            finally:
-                self.database.close()
-                self._is_closed = True
-
-    def add_rows(self, file_generator: Iterable) -> None:
+    def add_rows(self, folders: Iterable[PathLike]) -> None:
         """
         Add rows into the database additively.
 
-        This method accepts files from a generator and adds them to the
+        This method accepts a folders iterable and adds them to the
         existing database. It serves to avoid re-crawling folders that had
         already been selected previously.
 
         Args:
-            file_generator (Generator): Iterable of files to be added
-
-        Returns:
-
-
-        Raises:
-
-
-        Examples:
-
+            folders: Iterable of folders to be added
         """
-        pass
+        if not folders:
+            return
 
-    def remove_rows(self):
+        with self.crawler_class() as crawler:
+            for folder in folders:
+                inserted = 0
+                rows = self.generate_rows(folder, crawler)
+                batches = self.generator_of_batches(rows, self.batch_size)
+                for batch in batches:
+                    inserted += self.backend.insert_rows(batch)
+                logger.debug(
+                    f"""
+                    Crawl done: rom folder {folder} {inserted} were inserted.
+                    """
+                )
+
+    @staticmethod
+    def generate_rows(folder, crawler) -> Generator[ImageRow, Any, None]:
+        for file_entry in crawler.crawl(folders=folder):
+            yield ImageRow.from_file_entry(file_entry)
+
+    @staticmethod
+    def generator_of_batches(
+        rows: Generator[ImageRow, None, None], batch_size: int
+    ) -> Generator[Generator[ImageRow, None, None], None, None]:
+        """
+        Yield generators of up to batch_size rows.
+        Each batch is itself a generator, not a list.
+        """
+
+        def make_batch(
+            initial_row: ImageRow,
+            remaining_rows: Generator[ImageRow, None, None],
+        ):
+            """Yield first_row + up to batch_size-1 from remaining_rows"""
+            count = 0
+            yield initial_row
+            count += 1
+            for row in remaining_rows:
+                yield row
+                count += 1
+                if count >= batch_size:
+                    break
+
+        # Materialize the rows_generator as an iterator
+        rows_iter = iter(rows)
+        while True:
+            try:
+                first_row = next(rows_iter)
+            except StopIteration:
+                break
+            # Yields mini generators of size: batch_size
+            yield make_batch(first_row, rows_iter)
+
+    def remove_rows(self, folders: Iterable[PathLike]):
         """
         Remove rows of paths under given directory from database
 
@@ -207,126 +324,12 @@ class DatabaseWriter:
 
         Args:
             parent_folders list[str]: Parent directories to be removed
-
-        Returns:
-
-
-        Raises:
-
-
-        Examples:
-
         """
+        self.backend.remove_rows(folders)
 
-    def update_seen(self):
-        pass
-
-    def _flush(self, prepare_rows_fn: Callable = None) -> tuple[int, int]:
-        """
-        Dump all file paths currently in batch and clear batch
-
-        Inserts all paths in the loading_block into the database,
-        generating a randid random float for each entry. Return a tuple
-        showing rows attempted and rows inserted to check duplicates
-
-        Args:
-            prepare_rows_fn (Callable, optional): Function that transforms
-            batch into rows ready for insertion. Defaults to `gather_rows`.
-
-        Returns:
-            tuple[int,int]: (attempted, inserted), showing number of rows
-                attempted and number of rows actually inserted.
-
-        Raises:
-            CommitError: If insertion fails. The original exception is chained.
-
-        Examples:
-            > flush(batch_preparer)
-            (42, 40)
-        """
-        with self._lock:
-            batch = self.loading_block
-            self.loading_block = []
-            self.file_count = 0
-        prepare_rows = prepare_rows_fn or gather_rows
-        if not batch:
-            return 0, 0
-        attempted = len(batch)
-        inserted = 0
-        try:
-            inserted = self.insert_rows(prepare_rows(batch))
-        except Exception as e:
-            # TODO: fail-fast mode only for development.
-            # Switch to skip+log strategy in production.
-            logger.exception(
-                f"Commit error while writing {attempted} rows",
-            )
-            raise CommitError from e
-        finally:
-            logger.info(
-                f"""
-                Flush completed: attempted={attempted},
-                inserted={inserted},
-                skipped={attempted - inserted}""",
-            )
-        return attempted, inserted
-
-    def add_path(self, path: PathLike) -> None:
-        """
-        Insert path in batch, write to DB if threshold reached.
-        """
-        if isinstance(path, Path):
-            path = str(path)
-        if not isinstance(path, str):
-            raise ValueError("Entry not a valid path string")
-        should_flush = False
-        with self._lock:
-            if self._is_closed:
-                return
-            self.loading_block.append(path)
-            self.file_count += 1
-            if self.file_count >= self.commit_block_size:
-                should_flush = True
-        if should_flush:
-            self.flush()
-
-
-# Helper functions
-
-
-def gather_rows(file_batch, row_fn: Callable = None) -> Iterable[ImageRow]:
-    row_fn = row_fn or build_row_from
-    for file_path in file_batch:
-        try:
-            yield row_fn(file_path)
-        except (FileNotFoundError, PermissionError, NotADirectoryError):
-            logger.warning(
-                f"File skipped: {file_path}",
-            )
-        except Exception:
-            logger.error(
-                "Unexpected error when gathering rows",
-                exc_info=True,
-            )
-            raise
-
-
-def build_row_from(file_entry: FileEntry) -> ImageRow:
-    """
-    Return an ImageRow object
-
-    Args:
-        file_entry FileEntry: Canonical file-system object for Draw-This
-
-    Returns:
-        ImageRow: Canonical database object for Draw-This
-    """
-    return ImageRow(
-        file_path=file_entry.path,
-        folder=file_entry.stat.parent_dir,
-        randid=random.random(),
-        mtime=file_entry.stat.st_mtime,
-    )
+    def update_seen(self, folders: Iterable[PathLike]):
+        # TODO to be implemented once async loading is possible
+        self.backend.mark_seen(folders)
 
 
 class Crawler:
@@ -466,24 +469,24 @@ class Crawler:
         raise TypeError(f"Invalid type: {type(item)}")
 
 
-# class Loader:
-#     """Read all paths in a SQLite database, filtering and sorting them.
-#
-#     Attributes:
-#         :ivar database: Connection to the SQLite database
-#     """
-#
-#     def __init__(self, db_path=":memory:"):
-#         self.database = sql.connect(db_path)
-#
-#     def total_db_loader(self) -> list:
-#         """Reads and returns ALL paths in the database in bulk."""
-#         cur = self.database.cursor()
-#         cur.execute(
-#             """
-#         SELECT  path, folder, randid, mtime
-#         FROM image_paths
-#         ORDER BY randid
-#         """
-#         )
-#         return [row[0] for row in cur.fetchall()]
+class Loader:
+    """Read all paths in a SQLite database, filtering and sorting them.
+
+    Attributes:
+        :ivar database: Connection to the SQLite database
+    """
+
+    def __init__(self, db_path=":memory:"):
+        self.database = sqlite3.connect(db_path)
+
+    def total_db_loader(self) -> list:
+        """Reads and returns ALL paths in the database in bulk."""
+        cur = self.database.cursor()
+        cur.execute(
+            """
+        SELECT  path, folder, randid, mtime
+        FROM image_paths
+        ORDER BY randid
+        """
+        )
+        return [row[0] for row in cur.fetchall()]

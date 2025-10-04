@@ -16,6 +16,7 @@ from typing import (
 class StatLike(Protocol):
     st_mtime: float
     st_ino: int
+    st_dev: int
 
 
 @runtime_checkable
@@ -36,6 +37,7 @@ class DirEntryLike(Protocol):
 class FileStat:
     st_mtime: float
     st_ino: int
+    st_dev: int
 
 
 @dataclass(frozen=True)
@@ -68,6 +70,7 @@ class FileEntry:
             stat=FileStat(
                 st_mtime=stat.st_mtime,
                 st_ino=stat.st_ino,
+                st_dev=stat.st_dev,
             ),
         )
 
