@@ -3,8 +3,11 @@ import queue
 import random
 import sqlite3 as sql
 import threading
+from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Iterable, Callable, Protocol, NamedTuple
+from typing import Iterable, Callable, Protocol, NamedTuple, Any
+
+from pybloom_live import BloomFilter
 
 from drawthis.utils.logger import logger
 
@@ -28,6 +31,122 @@ Usage
 This file is imported as a package according to the following:
     import logic.file_listing
 """
+
+
+class DatabaseBackend(ABC):
+    """Abstract interface for database backends used in Draw-This."""
+
+    @abstractmethod
+    def initialize(self) -> None:
+        """Establish a connection and prepare for access."""
+
+    @abstractmethod
+    def clear_all(self) -> None:
+        """Remove all rows from the database (reset state)."""
+
+    @abstractmethod
+    def setup_schema(self) -> None:
+        """Initialize database schema if not already created."""
+
+    @abstractmethod
+    def insert_rows(self, rows: Iterable[tuple]) -> int:
+        """
+        Insert multiple rows into the database.
+
+        Args:
+            rows: An iterable of row tuples matching schema.
+        Returns:
+            int: Number of rows successfully inserted.
+        """
+
+    @abstractmethod
+    def remove_rows(self, paths: Iterable[str]) -> int:
+        """
+        Remove rows that match given file paths.
+
+        Args:
+            paths: Iterable of file paths to delete.
+        Returns:
+            int: Number of rows removed.
+        """
+
+    @abstractmethod
+    def mark_seen(self, ids: Iterable[Any], seen: bool = True) -> int:
+        """
+        Update the 'seen' status of rows.
+
+        Args:
+            ids: Iterable of row IDs.
+            seen: New seen status (default True).
+        Returns:
+            int: Number of rows updated.
+        """
+
+    @abstractmethod
+    def shuffle(self) -> None:
+        """
+        Apply randomization strategy (if supported).
+        For SQLite this might reorder rows, for other backends it may differ.
+        """
+
+
+class SQLite3Backend(DatabaseBackend):
+    # TODO Add schema versioning and migration
+    DB_SCHEMA = """
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        path TEXT UNIQUE NOT NULL,
+        folder TEXT,
+        randid REAL,
+        mtime REAL
+        """
+    migration = {}
+
+    def __init__(self, db_path: str = None):
+        self.db_path = db_path
+        self.database = sql.Connection = None
+
+    def initialize(self) -> None:
+        self.database = sql.connect(self.db_path)
+
+    def clear_all(self) -> None:
+        """Clear the table in the database used to hold image paths."""
+        cursor = self.database.cursor()
+        cursor.execute("""DROP TABLE IF EXISTS image_paths""")
+        cursor.close()
+
+    def setup_schema(self, db_schema: str = None):
+        """Initialize the table in the database used to hold image paths."""
+        db_schema = db_schema or self.DB_SCHEMA
+        cursor = self.database.cursor()
+        cursor.execute(
+            f"""CREATE TABLE IF NOT EXISTS image_paths ({db_schema})"""
+        )
+        cursor.close()
+
+    def insert_rows(self, rows: Iterable[tuple]) -> int:
+        cursor = self.database.cursor()
+        cursor.executemany(
+            """
+            INSERT OR IGNORE INTO
+            image_paths(path, folder, randid, mtime)
+             VALUES (?, ?, ?, ?)
+            """,
+            rows,
+        )
+        # NOTE: SELECT changes() is statement-local, safe after executemany
+        cursor.execute("SELECT changes()")
+        inserted = cursor.fetchone()[0]
+        cursor.close()
+        return inserted
+
+    def remove_rows(self, paths: Iterable[str]) -> int:
+        pass
+
+    def mark_seen(self, ids: Iterable[Any], seen: bool = True) -> int:
+        pass
+
+    def shuffle(self) -> None:
+        pass
 
 
 class ImageRow(NamedTuple):
@@ -64,41 +183,28 @@ class DatabaseWriter:
     (stat_fn, prepare_rows_fn, etc.) allow mocking the filesystem or row prep.
     Adding additional database types can be done by overriding the database
     connection (db_conn) and providing apropriate methods for manipulation.
+    # TODO onsider splitting into orchestration layer that can handle policy
     """
 
     COMMIT_BLOCK_SIZE = 1500
-    # TODO Add schema versioning and migration
-    DB_SCHEMA = (
-        "id INTEGER PRIMARY KEY AUTOINCREMENT,"
-        "path TEXT UNIQUE NOT NULL,"
-        "folder TEXT,"
-        "randid REAL,"
-        "mtime REAL"
-    )
 
     def __init__(
         self,
         db_path: str | Path = ":memory:",
         db_conn=None,
         commit_block_size=None,
-        clear_database_fn=None,
-        setup_schema_fn=None,
-        insert_rows_fn: MassCommitFN = None,
+        backend=None,
     ):
         self.database = db_conn or sql.connect(
             db_path, check_same_thread=False
         )
-        self.setup_schema = setup_schema_fn or self._setup_schema_sqlite3
-        self.clear_database = clear_database_fn or self._clear_database_sqlite3
-        self.insert_rows = insert_rows_fn or self._insert_rows_sqlite3
+        self.backend = backend or SQLite3Backend()
         self.commit_block_size = commit_block_size or self.COMMIT_BLOCK_SIZE
 
         self.loading_block: list[str] = []
         self.file_count = 0
         self._lock = threading.RLock()
         self._is_closed = False
-
-        self.setup_schema()
 
     def __enter__(self) -> "DatabaseWriter":
         self._is_closed = False
@@ -107,27 +213,80 @@ class DatabaseWriter:
     def __exit__(self, exc_type, exc, tb) -> None:
         with self._lock:
             try:
-                self.flush()
+                self._flush()
             except CommitError:
                 logger.error("Flush failed on exit.", exc_info=True)
             finally:
                 self.database.close()
                 self._is_closed = True
 
-    def add_rows(self):
+    def add_rows(self, file_generator: Iterable) -> None:
+        """
+        Add rows into the database additively.
+
+        This method accepts files from a generator and adds them to the
+        existing database. It serves to avoid re-crawling folders that had
+        already been selected previously.
+
+        Args:
+            file_generator (Generator): Iterable of files to be added
+
+        Returns:
+
+
+        Raises:
+
+
+        Examples:
+
+        """
         pass
 
     def remove_rows(self):
-        pass
+        """
+        Remove rows of paths under given directory from database
+
+        This method removes all rows with paths under the provided parent
+        directories.
+
+        Args:
+            parent_folders list[str]: Parent directories to be removed
+
+        Returns:
+
+
+        Raises:
+
+
+        Examples:
+
+        """
 
     def update_seen(self):
         pass
 
-    def flush(self, prepare_rows_fn: Callable = None) -> tuple[int, int]:
+    def _flush(self, prepare_rows_fn: Callable = None) -> tuple[int, int]:
         """
+        Dump all file paths currently in batch and clear batch
+
         Inserts all paths in the loading_block into the database,
         generating a randid random float for each entry. Return a tuple
         showing rows attempted and rows inserted to check duplicates
+
+        Args:
+            prepare_rows_fn (Callable, optional): Function that transforms
+            batch into rows ready for insertion. Defaults to `gather_rows`.
+
+        Returns:
+            tuple[int,int]: (attempted, inserted), showing number of rows
+                attempted and number of rows actually inserted.
+
+        Raises:
+            CommitError: If insertion fails. The original exception is chained.
+
+        Examples:
+            > flush(batch_preparer)
+            (42, 40)
         """
         with self._lock:
             batch = self.loading_block
@@ -150,9 +309,9 @@ class DatabaseWriter:
         finally:
             logger.info(
                 f"""
-            Flush completed: attempted={attempted},
-            inserted={inserted},
-            skipped={attempted - inserted}""",
+                Flush completed: attempted={attempted},
+                inserted={inserted},
+                skipped={attempted - inserted}""",
             )
         return attempted, inserted
 
@@ -175,45 +334,6 @@ class DatabaseWriter:
         if should_flush:
             self.flush()
 
-    # Accessors
-
-    @property
-    def closed(self):
-        return self._is_closed
-
-    # SQLite 3 dependency private methods
-
-    def _clear_database_sqlite3(self) -> None:
-        """Clear the table in the database used to hold image paths."""
-        cursor = self.database.cursor()
-        cursor.execute("""DROP TABLE IF EXISTS image_paths""")
-        cursor.close()
-
-    def _setup_schema_sqlite3(self, db_schema: str = None):
-        """Initialize the table in the database used to hold image paths."""
-        db_schema = db_schema or self.DB_SCHEMA
-        cursor = self.database.cursor()
-        cursor.execute(
-            f"""CREATE TABLE IF NOT EXISTS image_paths ({db_schema})"""
-        )
-        cursor.close()
-
-    def _insert_rows_sqlite3(self, rows: Iterable[tuple]) -> int:
-        cursor = self.database.cursor()
-        cursor.executemany(
-            """
-        INSERT OR IGNORE INTO
-        image_paths(path, folder, randid, mtime)
-         VALUES (?, ?, ?, ?)
-        """,
-            rows,
-        )
-        # NOTE: SELECT changes() is statement-local, safe after executemany
-        cursor.execute("SELECT changes()")
-        inserted = cursor.fetchone()[0]
-        cursor.close()
-        return inserted
-
 
 # Helper functions
 
@@ -235,14 +355,46 @@ def gather_rows(file_batch, row_fn: Callable = None) -> Iterable[ImageRow]:
             raise
 
 
-def build_row(file_path: str, stat_fn: Callable = None) -> ImageRow:
-    stat_fn = stat_fn or os.stat
-    return ImageRow(
-        file_path=file_path,
-        folder=os.path.dirname(file_path),
-        randid=random.random(),
-        mtime=stat_fn(file_path).st_mtime,
-    )
+def build_row(file_entry: os.DirEntry, with_stat: bool = False) -> ImageRow:
+    """
+    Assemble an ImageRow object
+
+    This method uses a DirEntry directly to avoid syscalls and assembles rows
+    ready for database insertion. Performing os.stat() is optional.
+
+    Args:
+        file_entry os.DirEntry: filesystem object assemble row from
+        with_stat bool: Enable os.stat() call, currently for st_mtime
+
+    Returns:
+        ImageRow: Assempled ImageRow object ready for storage
+
+    Raises:
+        FileNotFoundError: log and skip
+
+    Examples:
+        >row = build_row(parent/directory/file, True)
+        >print(row.file_path)
+        'parent/directory/file'
+        >print(row.mtime)
+        '123456789.0'
+        >print(row.folder)
+        'parent/directory'
+    """
+    st_mtime = file_entry.stat().st_mtime if with_stat else None
+    row = None
+    try:
+        row = ImageRow(
+            file_path=file_entry.path,
+            folder=os.path.dirname(file_entry.path),
+            randid=random.random(),
+            mtime=st_mtime,
+        )
+    except FileNotFoundError:
+        logger.warning(
+            f"File not found when assembling row: {file_entry.path}"
+        )
+    return row
 
 
 class Crawler:
@@ -261,32 +413,65 @@ class Crawler:
         self,
         on_start=None,
         on_end=None,
+        dir_access_fn=None,
+        bloom_filter_cap=100000,
+        bloom_filter_error_rate=0.001,
     ):
         self.on_start = on_start
         self.on_end = on_end
+        self.dir_access = dir_access_fn or os.scandir
+        self.dir_queue: queue.Queue = queue.Queue()
+        self.filter = BloomFilter(
+            capacity=bloom_filter_cap, error_rate=bloom_filter_error_rate
+        )
 
-    # TODO Major refactor next:
-    def crawl(
-        self,
-        root_dir: str | Path,
-        dir_access_fn,
-    ) -> Iterable[os.DirEntry]:
+    def crawl(self, folders: list[str | Path]) -> Iterable[os.DirEntry]:
         """Yield every file in a folder iteratively."""
-        dir_queue: queue.Queue = queue.Queue()
-        dir_access_fn = dir_access_fn or os.scandir
-        dir_queue.put(root_dir)
-        self.on_start()
-        while not dir_queue.empty():
-            current_dir = dir_queue.get()
+        self.enqueue_list(folders)
+
+        if self.on_start:
+            self.on_start()
+
+        while not self.dir_queue.empty():
+            current_dir = self.dir_queue.get()
             try:
-                for dir_entry in dir_access_fn(current_dir):
-                    if dir_entry.is_dir():
-                        dir_queue.put(dir_entry.path)
-                        continue
-                    yield dir_entry
-            except (PermissionError, FileNotFoundError, NotADirectoryError):
+                yield from self.check_dir_and_yield(current_dir)
+            except (
+                PermissionError,
+                FileNotFoundError,
+                NotADirectoryError,
+            ):
                 logger.warning(f"Skipped {current_dir}", exc_info=True)
-        self.on_end()
+
+        if self.on_end:
+            self.on_end()
+
+    def check_dir_and_yield(self, directory):
+        for entry in self.dir_access(directory):
+            # Resolve symlinks safely
+            try:
+                is_symlink = entry.is_symlink()
+            except OSError:  # e.g. broken link
+                is_symlink = False
+
+            if is_symlink:
+                # decide policy – here we skip them
+                continue
+
+            if entry.is_dir(follow_symlinks=False):
+                # store absolute path for bloom filter
+                abs_path = os.path.abspath(entry.path)
+                self.dir_queue.put(abs_path)
+                continue
+
+            yield entry
+
+    def enqueue_list(self, folder_list: list[str]):
+        for directory in folder_list:
+            abs_path = os.path.abspath(str(directory))
+            if abs_path not in self.filter:
+                self.filter.add(abs_path)
+                self.dir_queue.put(abs_path)
 
     def clean_up(self):
         pass

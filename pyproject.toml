@@ -14,6 +14,7 @@ dependencies = [
     "glfw (>=2.10.0,<3.0.0)",
     "black (>=25.9.0,<26.0.0)",
     "pillow-simd (>=9.5.0.post2,<10.0.0)",
+    "pybloom-live (>=4.0.0,<5.0.0)",
 ]
 packages = []
 

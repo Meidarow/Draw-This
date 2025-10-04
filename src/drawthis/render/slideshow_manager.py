@@ -1,4 +1,23 @@
+from abc import ABC, abstractmethod
+
 from drawthis.gui.state import Session
+from drawthis.render import start_slideshow_ogl, start_slideshow_feh
+
+
+class SlideshowBackend(ABC):
+    @abstractmethod
+    def start(self, session: Session):
+        pass
+
+
+class FehBackend(SlideshowBackend):
+    def start(self, session: Session = None):
+        start_slideshow_feh(**session.to_dict())
+
+
+class OGLBackend(SlideshowBackend):
+    def start(self, session: Session = None):
+        start_slideshow_ogl(**session.to_dict())
 
 
 class SlideshowManager:
@@ -24,17 +43,17 @@ class SlideshowManager:
         to support additional backends.
     """
 
-    def __init__(self):
-        pass
+    def __init__(self, backend: SlideshowBackend = None):
+        self.backend = backend or FehBackend()
 
     def start(self, session: Session):
-        pass
+        self.backend.start(session)
 
     def stop(self):
         pass
 
     @property
     def is_running(self):
-        pass
+        return
 
     # Private helpers

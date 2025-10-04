@@ -12,11 +12,8 @@ from drawthis.app.signals import (
 from drawthis.gui.model import Model
 from drawthis.gui.tkinter_gui import View
 from drawthis.render import SlideshowManager
-from drawthis.render import start_slideshow_ogl
 from drawthis.utils.logger import logger
 from drawthis.utils.subprocess_queue import SignalQueue
-
-BACKEND_FUNCTION = start_slideshow_ogl
 
 """
 Viewmodel for Draw-This.
@@ -49,7 +46,7 @@ class Viewmodel:
         ]
         self._tk_timers = self.model.session.timers.all
 
-        # self._subscribe_to_signals()
+        self._subscribe_to_signals()
 
     # Public API
 
@@ -89,11 +86,12 @@ class Viewmodel:
 
     def delete_widget(self, widget_type: str, value: str | int) -> None:
         """Remove widget of [value] from [widget_type] dict"""
-        handlers = {
-            "folder": lambda v: self.model.delete_folder(v),
-            "timer": lambda v: self.model.delete_timer(v),
-        }
-        handlers.get(widget_type, lambda v: None)(value)
+        if widget_type == "folder":
+            self.tk_folders = [p for p in self.tk_folders if p[0] != value]
+            self.model.delete_folder(value),
+        elif widget_type == "timer":
+            self.tk_timers.remove(value)
+            self.model.delete_timer(value),
 
     def sync_folder(self, key: str) -> None:
         """Update folder selected status in model"""
@@ -172,14 +170,10 @@ class Viewmodel:
         self.view.refresh_timer_gui(self.model.session.timers.all)
         logger.info("Timer changed.")
 
-    def _on_folder_added(self, _, folder_path) -> None:
-        self.tk_folders = [
-            (item[0], tk.BooleanVar(value=item[1]))
-            for item in self.model.session.folders.all.items()
-        ]
-        self.view.add_folder_gui(
-            folder=folder_path, enabled=tk.BooleanVar(value=True)
-        )
+    def _on_folder_added(self, _, folder_path: str) -> None:
+        var = tk.BooleanVar(value=True)
+        self.tk_folders.append((folder_path, var))
+        self.view.add_folder_gui(folder=folder_path, enabled=var)
         logger.info("Folder added.")
 
     def _on_session_started(self, _) -> None:
