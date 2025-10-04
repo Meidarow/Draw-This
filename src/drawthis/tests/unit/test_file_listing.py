@@ -8,7 +8,7 @@ import unittest
 from typing import Callable, NamedTuple, Any
 from unittest import mock
 
-from drawthis.logic.file_listing import build_row, ImageRow
+from drawthis.logic.file_listing import build_row_from, ImageRow
 
 
 def make_fake_stat(**overrides):
@@ -63,7 +63,9 @@ class TestBuildRow(unittest.TestCase):
             "drawthis.logic.file_listing.random.random",
             deterministic_random(42),
         ):
-            row = build_row(file_path="some/file.jpg", stat_fn=fake_stat_fn)
+            row = build_row_from(
+                file_path="some/file.jpg", stat_fn=fake_stat_fn
+            )
 
         self.assertEqual(set(ImageRow._fields), set(row._fields))
         self.assertIsInstance(row, ImageRow)
@@ -101,7 +103,7 @@ class TestBuildRow(unittest.TestCase):
 
         for inp, exp_folder in self.path_cases():
             with self.subTest(path=inp):
-                row = build_row(file_path=inp, stat_fn=fake_stat_fn)
+                row = build_row_from(file_path=inp, stat_fn=fake_stat_fn)
 
                 self.assertEqual(row.file_path, inp)
                 self.assertEqual(row.folder, os.path.dirname(inp))
@@ -116,7 +118,7 @@ class TestBuildRow(unittest.TestCase):
         def fake_stat_fn(*args):
             return fake_stat
 
-        row = build_row(file_path="any.jpg", stat_fn=fake_stat_fn)
+        row = build_row_from(file_path="any.jpg", stat_fn=fake_stat_fn)
 
         self.assertEqual(row.mtime, fake_stat.st_mtime)
 
@@ -137,7 +139,7 @@ class TestBuildRow(unittest.TestCase):
             ) as mock_stat:
                 mock_stat.return_value = make_fake_stat(st_mtime=42.0)
 
-                row = build_row(file_path=tmp.name)  # no stat_fn argument
+                row = build_row_from(file_path=tmp.name)  # no stat_fn argument
 
                 self.assertEqual(row.mtime, 42.0)
 
@@ -151,7 +153,7 @@ class TestBuildRow(unittest.TestCase):
             return fake_stat
 
         for _ in range(20):
-            row = build_row(file_path="x.jpg", stat_fn=fake_stat_fn)
+            row = build_row_from(file_path="x.jpg", stat_fn=fake_stat_fn)
             self.assertIsInstance(row.randid, float)
             self.assertGreaterEqual(row.randid, 0.0)
             self.assertLess(row.randid, 1.0)
@@ -162,14 +164,16 @@ class TestBuildRow(unittest.TestCase):
     def test_invalid_stat_fn_raises(self):
         with self.assertRaises(TypeError):
             # noinspection PyTypeChecker
-            build_row(file_path="a.jpg", stat_fn="not a function")
+            build_row_from(file_path="a.jpg", stat_fn="not a function")
 
     def test_missing_mtime_attribute(self):
         class IncompleteStat:
             pass
 
         with self.assertRaises(AttributeError):
-            build_row(file_path="b.jpg", stat_fn=lambda _: IncompleteStat())
+            build_row_from(
+                file_path="b.jpg", stat_fn=lambda _: IncompleteStat()
+            )
 
     # ------------------------------------------------------------------
     # 7️⃣  No side‑effects – ensure the function does not touch the filesystem
@@ -179,7 +183,7 @@ class TestBuildRow(unittest.TestCase):
         fake_stat_fn = mock.Mock(return_value=fake_stat)
 
         with mock.patch("drawthis.logic.file_listing.os.stat") as mock_os_stat:
-            row = build_row(file_path="dummy.jpg", stat_fn=fake_stat_fn)
+            row = build_row_from(file_path="dummy.jpg", stat_fn=fake_stat_fn)
 
             mock_os_stat.assert_not_called()
             fake_stat_fn.assert_called_once_with("dummy.jpg")
@@ -191,7 +195,7 @@ class TestBuildRow(unittest.TestCase):
     def test_type_hints_exist(self):
         from inspect import signature
 
-        sig = signature(build_row)
+        sig = signature(build_row_from)
         self.assertEqual(sig.parameters["file_path"].annotation, str)
         self.assertTrue(
             sig.parameters["stat_fn"].annotation == Callable

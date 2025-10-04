@@ -3,13 +3,31 @@ import queue
 import random
 import sqlite3 as sql
 import threading
-from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Iterable, Callable, Protocol, NamedTuple, Any
+from typing import (
+    Iterable,
+    Callable,
+    Any,
+    Generator,
+    Optional,
+)
 
 from pybloom_live import BloomFilter
 
+from drawthis.logic.protocols import (
+    DatabaseBackend,
+    ImageRow,
+    DirectoryScanner,
+    Filter,
+    FileEntry,
+)
 from drawthis.utils.logger import logger
+
+# Type aliases:
+
+PathLike = str | Path
+FolderInput = PathLike | Iterable[PathLike]
+
 
 """
 SQLite file lister for Draw-This.
@@ -33,61 +51,12 @@ This file is imported as a package according to the following:
 """
 
 
-class DatabaseBackend(ABC):
-    """Abstract interface for database backends used in Draw-This."""
+class DatabaseWriterError(Exception):
+    pass
 
-    @abstractmethod
-    def initialize(self) -> None:
-        """Establish a connection and prepare for access."""
 
-    @abstractmethod
-    def clear_all(self) -> None:
-        """Remove all rows from the database (reset state)."""
-
-    @abstractmethod
-    def setup_schema(self) -> None:
-        """Initialize database schema if not already created."""
-
-    @abstractmethod
-    def insert_rows(self, rows: Iterable[tuple]) -> int:
-        """
-        Insert multiple rows into the database.
-
-        Args:
-            rows: An iterable of row tuples matching schema.
-        Returns:
-            int: Number of rows successfully inserted.
-        """
-
-    @abstractmethod
-    def remove_rows(self, paths: Iterable[str]) -> int:
-        """
-        Remove rows that match given file paths.
-
-        Args:
-            paths: Iterable of file paths to delete.
-        Returns:
-            int: Number of rows removed.
-        """
-
-    @abstractmethod
-    def mark_seen(self, ids: Iterable[Any], seen: bool = True) -> int:
-        """
-        Update the 'seen' status of rows.
-
-        Args:
-            ids: Iterable of row IDs.
-            seen: New seen status (default True).
-        Returns:
-            int: Number of rows updated.
-        """
-
-    @abstractmethod
-    def shuffle(self) -> None:
-        """
-        Apply randomization strategy (if supported).
-        For SQLite this might reorder rows, for other backends it may differ.
-        """
+class CommitError(DatabaseWriterError):
+    """Error when attempting to commit rows to chosen database."""
 
 
 class SQLite3Backend(DatabaseBackend):
@@ -103,7 +72,7 @@ class SQLite3Backend(DatabaseBackend):
 
     def __init__(self, db_path: str = None):
         self.db_path = db_path
-        self.database = sql.Connection = None
+        self.database: sql.Connection | None = None
 
     def initialize(self) -> None:
         self.database = sql.connect(self.db_path)
@@ -114,7 +83,7 @@ class SQLite3Backend(DatabaseBackend):
         cursor.execute("""DROP TABLE IF EXISTS image_paths""")
         cursor.close()
 
-    def setup_schema(self, db_schema: str = None):
+    def setup_schema(self, db_schema: str = None) -> None:
         """Initialize the table in the database used to hold image paths."""
         db_schema = db_schema or self.DB_SCHEMA
         cursor = self.database.cursor()
@@ -140,33 +109,20 @@ class SQLite3Backend(DatabaseBackend):
         return inserted
 
     def remove_rows(self, paths: Iterable[str]) -> int:
-        pass
+        cursor = self.database.cursor()
+        cursor.execute()
+        cursor.close()
+        return 0
 
-    def mark_seen(self, ids: Iterable[Any], seen: bool = True) -> int:
-        pass
+    def mark_seen(self, ids: Iterable[Any], seen: bool = True) -> None:
+        cursor = self.database.cursor()
+        cursor.execute()
+        cursor.close()
 
     def shuffle(self) -> None:
-        pass
-
-
-class ImageRow(NamedTuple):
-    file_path: str
-    folder: str
-    randid: float
-    mtime: float
-
-
-class MassCommitFN(Protocol):
-    def __call__(self, a: Iterable[ImageRow]) -> int:
-        pass
-
-
-class DatabaseWriterError(Exception):
-    pass
-
-
-class CommitError(DatabaseWriterError):
-    """Error when attempting to commit rows to chosen database."""
+        cursor = self.database.cursor()
+        cursor.execute()
+        cursor.close()
 
 
 class DatabaseWriter:
@@ -315,7 +271,7 @@ class DatabaseWriter:
             )
         return attempted, inserted
 
-    def add_path(self, path: str | Path) -> None:
+    def add_path(self, path: PathLike) -> None:
         """
         Insert path in batch, write to DB if threshold reached.
         """
@@ -339,7 +295,7 @@ class DatabaseWriter:
 
 
 def gather_rows(file_batch, row_fn: Callable = None) -> Iterable[ImageRow]:
-    row_fn = row_fn or build_row
+    row_fn = row_fn or build_row_from
     for file_path in file_batch:
         try:
             yield row_fn(file_path)
@@ -355,51 +311,27 @@ def gather_rows(file_batch, row_fn: Callable = None) -> Iterable[ImageRow]:
             raise
 
 
-def build_row(file_entry: os.DirEntry, with_stat: bool = False) -> ImageRow:
+def build_row_from(file_entry: FileEntry) -> ImageRow:
     """
-    Assemble an ImageRow object
-
-    This method uses a DirEntry directly to avoid syscalls and assembles rows
-    ready for database insertion. Performing os.stat() is optional.
+    Return an ImageRow object
 
     Args:
-        file_entry os.DirEntry: filesystem object assemble row from
-        with_stat bool: Enable os.stat() call, currently for st_mtime
+        file_entry FileEntry: Canonical file-system object for Draw-This
 
     Returns:
-        ImageRow: Assempled ImageRow object ready for storage
-
-    Raises:
-        FileNotFoundError: log and skip
-
-    Examples:
-        >row = build_row(parent/directory/file, True)
-        >print(row.file_path)
-        'parent/directory/file'
-        >print(row.mtime)
-        '123456789.0'
-        >print(row.folder)
-        'parent/directory'
+        ImageRow: Canonical database object for Draw-This
     """
-    st_mtime = file_entry.stat().st_mtime if with_stat else None
-    row = None
-    try:
-        row = ImageRow(
-            file_path=file_entry.path,
-            folder=os.path.dirname(file_entry.path),
-            randid=random.random(),
-            mtime=st_mtime,
-        )
-    except FileNotFoundError:
-        logger.warning(
-            f"File not found when assembling row: {file_entry.path}"
-        )
-    return row
+    return ImageRow(
+        file_path=file_entry.path,
+        folder=file_entry.stat.parent_dir,
+        randid=random.random(),
+        mtime=file_entry.stat.st_mtime,
+    )
 
 
 class Crawler:
     """
-    Walks directories recursively and yields file info objects.
+    Walks directories recursively and yields DirEntry objects.
     Guarantees:
     - Duplicate safe (Bloom filter)
     - Recursion safe (symlinks handled)
@@ -407,94 +339,151 @@ class Crawler:
 
     Compromise:
     -May skip directories due to Bloom filter false positives (rare)
+
+    Notes:
+        -Converts DirEntryLike objects into static FileEntry objects
+        -Use as a context manager for automatic cleanup, or manage cleanup
+         manually via clear_queue() / reset_state() for long-lived crawlers.
     """
 
     def __init__(
         self,
-        on_start=None,
-        on_end=None,
-        dir_access_fn=None,
-        bloom_filter_cap=100000,
-        bloom_filter_error_rate=0.001,
+        on_start: Callable | None = None,
+        on_end: Callable | None = None,
+        on_skip: Callable[[str, Exception], None] | None = None,
+        dir_access_fn: DirectoryScanner = None,
+        bloom_filter: Optional[Filter] = None,
     ):
         self.on_start = on_start
         self.on_end = on_end
+        self.on_skip = on_skip
+        self.directory_queue: queue.Queue[str] = queue.Queue()
         self.dir_access = dir_access_fn or os.scandir
-        self.dir_queue: queue.Queue = queue.Queue()
-        self.filter = BloomFilter(
+        self.filter = bloom_filter
+        self._files_skipped = 0
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.clear_queue()
+        self._files_skipped = 0
+        self.filter = None
+
+    def clear_queue(self):
+        """Clear directory queue"""
+        while not self.directory_queue.empty():
+            self.directory_queue.get()
+
+    def reset_state(
+        self,
+        bloom_filter: Optional[Filter] = None,
+        bloom_filter_cap: int = 100000,
+        bloom_filter_error_rate: float = 0.001,
+    ):
+        """Reset Crawler for re-use, also resets skipped files counter"""
+        self._files_skipped = 0
+        self.clear_queue()
+        self.filter = bloom_filter or BloomFilter(
             capacity=bloom_filter_cap, error_rate=bloom_filter_error_rate
         )
 
-    def crawl(self, folders: list[str | Path]) -> Iterable[os.DirEntry]:
-        """Yield every file in a folder iteratively."""
-        self.enqueue_list(folders)
+    def crawl(self, folders: FolderInput) -> Generator[FileEntry]:
+        """Yield os.DirEntry objects for every file found in folders."""
+        self._enqueue(folders)
 
         if self.on_start:
             self.on_start()
 
-        while not self.dir_queue.empty():
-            current_dir = self.dir_queue.get()
+        while not self.directory_queue.empty():
+            current_directory = self.directory_queue.get()
             try:
-                yield from self.check_dir_and_yield(current_dir)
+                yield from self._generate_entries_from(current_directory)
             except (
                 PermissionError,
                 FileNotFoundError,
                 NotADirectoryError,
-            ):
-                logger.warning(f"Skipped {current_dir}", exc_info=True)
+            ) as e:
+                self._files_skipped += 1
+                if self.on_skip:
+                    self.on_skip(current_directory, e)
+                else:
+                    logger.warning(
+                        f"Skipped {current_directory}", exc_info=True
+                    )
 
         if self.on_end:
             self.on_end()
 
-    def check_dir_and_yield(self, directory):
-        for entry in self.dir_access(directory):
-            # Resolve symlinks safely
-            try:
-                is_symlink = entry.is_symlink()
-            except OSError:  # e.g. broken link
-                is_symlink = False
+    # Accessors for internal metrics
 
-            if is_symlink:
+    @property
+    def files_skipped(self):
+        return self._files_skipped
+
+    # Private Helpers
+
+    def _generate_entries_from(
+        self, directory: PathLike
+    ) -> Generator[FileEntry, None, None]:
+        for entry in self.dir_access(str(directory)):
+            file_entry = FileEntry.from_dir_entry(entry)
+
+            if file_entry.is_symlink:
                 # decide policy – here we skip them
                 continue
 
-            if entry.is_dir(follow_symlinks=False):
+            if file_entry.is_dir:
                 # store absolute path for bloom filter
-                abs_path = os.path.abspath(entry.path)
-                self.dir_queue.put(abs_path)
+                self._enqueue(file_entry.path)
                 continue
 
-            yield entry
+            yield file_entry
 
-    def enqueue_list(self, folder_list: list[str]):
-        for directory in folder_list:
-            abs_path = os.path.abspath(str(directory))
-            if abs_path not in self.filter:
-                self.filter.add(abs_path)
-                self.dir_queue.put(abs_path)
+    def _enqueue(self, folders: FolderInput):
+        """Add folders to Crawler's queue"""
+        for directory in self._as_iterable(folders):
+            try:
+                absolute_path = self._normalise_path(directory)
+                if absolute_path not in self.filter:
+                    self.filter.add(absolute_path)
+                    self.directory_queue.put(absolute_path)
+            except OSError:  # e.g. broken link
+                logger.warning("Relative to absolute path conversion failed")
 
-    def clean_up(self):
-        pass
+    @staticmethod
+    def _normalise_path(p: PathLike) -> str:
+        """Return absolute path from relative path"""
+        return os.path.abspath(str(p))
+
+    @staticmethod
+    def _as_iterable(item: FolderInput) -> Iterable[PathLike]:
+        """Convert to iterable"""
+        if isinstance(item, (str, Path)):
+            return [item]
+        if isinstance(item, Iterable):
+            return item
+        raise TypeError(f"Invalid type: {type(item)}")
 
 
-class Loader:
-    """Read all paths in a SQLite database, filtering and sorting them.
-
-    Attributes:
-        :ivar database: Connection to the SQLite database
-    """
-
-    def __init__(self, db_path=":memory:"):
-        self.database = sql.connect(db_path)
-
-    def total_db_loader(self) -> list:
-        """Reads and returns ALL paths in the database in bulk."""
-        cur = self.database.cursor()
-        cur.execute(
-            """
-        SELECT  path, folder, randid, mtime
-        FROM image_paths
-        ORDER BY randid
-        """
-        )
-        return [row[0] for row in cur.fetchall()]
+# class Loader:
+#     """Read all paths in a SQLite database, filtering and sorting them.
+#
+#     Attributes:
+#         :ivar database: Connection to the SQLite database
+#     """
+#
+#     def __init__(self, db_path=":memory:"):
+#         self.database = sql.connect(db_path)
+#
+#     def total_db_loader(self) -> list:
+#         """Reads and returns ALL paths in the database in bulk."""
+#         cur = self.database.cursor()
+#         cur.execute(
+#             """
+#         SELECT  path, folder, randid, mtime
+#         FROM image_paths
+#         ORDER BY randid
+#         """
+#         )
+#         return [row[0] for row in cur.fetchall()]
