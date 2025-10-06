@@ -1,7 +1,8 @@
 from drawthis.app.config import SettingsManager
+from drawthis.app.constants import DATABASE_FILE
 from drawthis.app.signals import widget_deleted, timer_changed, folder_added
 from drawthis.gui.state import Session
-from drawthis.logic.file_listing import DatabaseWriter
+from drawthis.logic.database.manager import DatabaseManager
 
 """
 Model to keep session state for Draw-This.
@@ -31,7 +32,7 @@ class Model:
 
     def __init__(self):
         self._settings_manager = SettingsManager()
-        self._database_writer = DatabaseWriter()
+        self._database_manager = DatabaseManager(DATABASE_FILE)
         self.session = Session()
         self.last_session = Session()
 
@@ -78,7 +79,7 @@ class Model:
 
     def save_session(self) -> None:
         """Set session parameters in settings_manager and persists"""
-        self._settings_manager.write_config(self.session)
+        self._settings_manager.write_config(self.session.copy())
         self.last_session = self.session.copy()
 
     # Acessors:
@@ -94,20 +95,19 @@ class Model:
         self.session.is_running = value
 
     def recalculate_if_should_recalculate(self) -> None:
-        """Recalculates database if folders changed from last session."""
+        """
+        Recalculates database if folders changed from last session.
+        Deleted folders are disabled folders or removed folders.
+        """
         current_folders = set(self.session.folders.enabled)
         if not current_folders:
             return
         previous_folders = set(self.last_session.folders.enabled)
         if current_folders == previous_folders:
             return
-        # added_folders = current_folders - previous_folders
-        # deleted_folders = previous_folders - current_folders
-        # TODO implement clean crawler call here
-        # OBS: Who determines if there are folders to add remove from DB?
-        # maybe pass both folder changes, folders added/folders removed
-        # The following logic probably belongs here in model:
-        # if deleted_folders:
-        #   self._database_writer.remove(deleted_folders)
-        # if added_folders:
-        #   self._database_writer.add(added_folders)
+        added_folders = current_folders - previous_folders
+        deleted_folders = previous_folders - current_folders
+        if deleted_folders:
+            self._database_manager.remove_rows(deleted_folders)
+        if added_folders:
+            self._database_manager.add_rows(added_folders)

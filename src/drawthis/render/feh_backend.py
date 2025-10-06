@@ -3,7 +3,7 @@ import subprocess
 import tempfile
 
 from drawthis.app.constants import DATABASE_FILE
-from drawthis.logic.file_listing import Loader
+from drawthis.logic.database.manager import DatabaseManager
 
 """
 FEH Backend for Draw-This.
@@ -36,7 +36,7 @@ def start_slideshow_feh(
                 :param selected_timer: Duration of each slide in seconds
     """
     # Populates a temp file with all paths to pass into the subprocess call
-    paths = Loader(DATABASE_FILE).total_db_loader()
+    paths = DatabaseManager(DATABASE_FILE).load_all_rows()
     with tempfile.NamedTemporaryFile(mode="w", delete=False) as f:
         f.write("\n".join(paths))
         filelist_path = f.name

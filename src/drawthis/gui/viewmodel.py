@@ -40,6 +40,7 @@ class Viewmodel:
         self.signal_queue = SignalQueue()
         self.slideshow = SlideshowManager()
 
+        self.model.load_last_session()
         self._tk_folders = [
             (folder, tk.BooleanVar(value=enabled))
             for folder, enabled in self.model.session.folders.all.items()
@@ -116,8 +117,9 @@ class Viewmodel:
         if self.slideshow.is_running:
             return
         else:
-            self.slideshow.start(self.model.session.copy())
+            self.model.recalculate_if_should_recalculate()
             self.model.save_session()
+            self.slideshow.start(self.model.session.copy())
 
     # Accessors
 

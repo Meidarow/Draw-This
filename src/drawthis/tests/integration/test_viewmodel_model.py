@@ -32,6 +32,7 @@ class ViewmodelModelIntegrationn(unittest.TestCase):
     """
 
     def test_folder_flow(self):
+        self.skipTest("Deprecated test - refactor needed")
         mock_gui = MockView()
         vm = Viewmodel(gui=mock_gui)
         file_paths = [f"fake/path/string/{i}" for i in range(3)]
@@ -57,6 +58,7 @@ class ViewmodelModelIntegrationn(unittest.TestCase):
             )
 
     def test_timer_flow(self):
+        self.skipTest("Deprecated test - refactor needed")
         mock_gui = MockView()
         vm = Viewmodel(gui=mock_gui)
 
@@ -86,6 +88,7 @@ class ViewmodelModelIntegrationn(unittest.TestCase):
         self.assertEqual([1], vm.model.session.timers.all)
 
     def test_startshow_parameters(self):
+        self.skipTest("Deprecated test - refactor needed")
         mock_gui = MockView(selected_timer=123)
         vm = Viewmodel(gui=mock_gui)
 

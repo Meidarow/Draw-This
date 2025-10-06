@@ -10,7 +10,7 @@ from PIL import UnidentifiedImageError, Image
 from moderngl_window.context.base import KeyModifiers
 
 from drawthis.app.constants import DATABASE_FILE
-from drawthis.logic.file_listing import Loader
+from drawthis.logic.database.manager import DatabaseManager
 from drawthis.utils.logger import logger
 from drawthis.utils.shader_parser import parse_shader
 
@@ -64,7 +64,7 @@ class RenderWindow(mglw.WindowConfig):
         image.
         """
         self.images = deque(
-            [Path(p) for p in Loader(DATABASE_FILE).total_db_loader()]
+            [Path(p) for p in DatabaseManager(DATABASE_FILE).load_all_rows()]
         )
         self._set_texture(self.images[0])
 
