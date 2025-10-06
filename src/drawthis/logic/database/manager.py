@@ -68,7 +68,7 @@ class DatabaseManager:
     ):
         self.backend = backend or SQLite3Backend(db_path)
         self.crawler_class = crawler or Crawler
-        self.batch_size = batch_size or 1500
+        self.batch_size = batch_size or 5000
 
         self.loading_block: list[str] = []
         self.file_count = 0
