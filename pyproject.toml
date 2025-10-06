@@ -1,6 +1,6 @@
 [project]
-name = "draw-this"
-version = "0.1.0"
+name = "drawthis"
+version = "2.0.0"
 description = "Compact and self-contained image slideshow app meant for art/gesture practice sessions."
 authors = [
     {name = "Meidarow",email = "60526952+Meidarow@users.noreply.github.com"}
@@ -8,20 +8,27 @@ authors = [
 readme = "README.md"
 requires-python = ">=3.12,<3.15"
 dependencies = [
-    "pyinstaller (>=6.15.0,<7.0.0)",
-    "pyopengl (>=3.1.10,<4.0.0)",
-    "pyopengl-accelerate (>=3.1.10,<4.0.0)",
-    "databases (>=0.9.0,<0.10.0)",
-    "aiosqlite (>=0.21.0,<0.22.0)",
     "moderngl-window (>=3.1.1,<4.0.0)",
     "blinker (>=1.9.0,<2.0.0)",
-    "nuitka (>=2.7.16,<3.0.0)",
-    "patchelf (>=0.17.2.4,<0.18.0.0)",
+    "imageio[pyav] (>=2.37.0,<3.0.0)",
+    "glfw (>=2.10.0,<3.0.0)",
+    "black (>=25.9.0,<26.0.0)",
+    "pillow-simd (>=9.5.0.post2,<10.0.0)",
+    "pybloom-live (>=4.0.0,<5.0.0)",
 ]
 packages = []
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]
+
+[tool.black]
+line-length = 79
+target-version = ['py311']
+
+[tool.poetry.scripts]
+docs-serve = "mkdocs.commands.serve:serve"
+docs-build = "mkdocs.commands.build:build"
+docs-deploy = "mkdocs.commands.gh_deploy:gh_deploy"
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]
@@ -29,4 +36,7 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.poetry.group.dev.dependencies]
 poetry-core = "^2.1.3"
-
+pre-commit = "^4.3.0"
+coverage = "^7.10.7"
+pytest-cov = "^7.0.0"
+pdoc = "^15.0.4"

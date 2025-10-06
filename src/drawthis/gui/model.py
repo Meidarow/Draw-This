@@ -1,14 +1,17 @@
-from drawthis import SettingsManager
-from drawthis.app.signals import folder_added, widget_deleted, timer_changed
+from drawthis.app.config import SettingsManager
+from drawthis.app.constants import DATABASE_FILE
+from drawthis.app.signals import widget_deleted, timer_changed, folder_added
+from drawthis.gui.state import Session
+from drawthis.logic.database.manager import DatabaseManager
 
 """
-Model to keep current state for Draw-This.
+Model to keep session state for Draw-This.
 
 This module defines the Model and interface with persistence module.
 It has two main classes:
 
 - Model:
-    Manages app state (folders, timers, selected timer, etc) and persistence (settings).
+    Manages app state (folders, timers, etc) and persistence (settings).
 
 Usage
 -----
@@ -16,138 +19,95 @@ This file is imported by Viewmodel as a package according to the following:
      from drawthis import Model
 """
 
+
 class Model:
     """Manages app state and bridges GUI with backend and persistence layers.
 
-        Attributes:
-            :ivar folders (list[tuple[str, tk.BooleanVar]]): Folder paths with enabled flags.
-            :ivar timers (list[int]): Available timers.
-            :ivar selected_timer (int): Currently chosen timer duration.
-        """
+    Do NOT mutate session from outside the model.
+    Attributes:
+        :ivar folders (list[tuple[str, tk.BooleanVar]]):
+        :ivar timers (list[int]):
+        :ivar selected_timer (int): Currently chosen timer duration.
+    """
 
     def __init__(self):
         self._settings_manager = SettingsManager()
+        self._database_manager = DatabaseManager(DATABASE_FILE)
+        self.session = Session()
+        self.last_session = Session()
+
+    # Public API
+
+    def load_last_session(self):
+        """Explicitly load previous session from settings."""
         self.last_session = self._settings_manager.read_config()
-        self._folders: dict[str, bool] = {item.get("path",""): item.get("enabled", False) for item in self.last_session.get("folders","")}
-        self._timers: list[int] = self.last_session.get("timers", [])
-        self._selected_timer: int = self.last_session.get("selected_timer", 0)
-
-        self._is_session_running = False
-
-    #Public API:
+        self.session = self.last_session.copy()  # or maybe a copy
 
     def add_timer(self, timer: int) -> None:
-        """Add a new timer if not already present.
+        """
+        Add timer to session
 
-                Args:
-                    :param timer: Duration in seconds.
-                """
+        The timer with value 0 is internally the indefinite, default timer,
+        and must not be added with add_timer
 
-        self._timers.append(timer)
-        self._timers = sorted(self._timers)
+        Raises:
+            ValueError: timers must be positive, non-zero integers
+        """
+        if timer <= 0:
+            raise ValueError(f"Invalid timer inserted: {timer}")
+        self.session.timers.add(timer)
         timer_changed.send(self)
 
-    def add_folder(self, folder_path: str) -> None:
-        """Asks user for a folder and adds new folder if not already present."""
+    def add_folder(self, folder: str) -> None:
+        """Add folder to session"""
+        self.session.folders.add(folder)
+        folder_added.send(self, folder_path=folder)
 
-        self._folders[folder_path] = True
-        folder_added.send(self, folder_path=folder_path)
+    def delete_folder(self, path: str) -> None:
+        """Delete folder from session."""
+        self.session.folders.remove(path)
+        widget_deleted.send(self, widget_type="folder", value=path)
 
-    def delete_item(self, widget_type: str, value: str | int) -> None:
-        """Removes a folder or timer from the attributes that store them.
+    def set_selected_timer(self, timer: int) -> None:
+        """Set the selected timer"""
+        self.session.selected_timer = timer
 
-                Args:
-                    :param widget_type:
-                    :param value: Folder or Timer to be deleted from internal list.
-                """
-        handlers = {
-            "folder": lambda v: self._folders.pop(v),
-            "timer": lambda v: self._timers.remove(v)
-        }
-        handlers.get(widget_type, lambda v: None)(value)
-        widget_deleted.send(self, widget_type=widget_type, value=value)
-
-    def set_folder_enabled(self, folder_path: str, enabled: bool) -> None:
-        """Add a new timer if not already present.
-
-                        Args:
-                            :param folder_path: Duration in seconds.
-                            :param enabled: Boolean
-                        """
-        if folder_path not in self._folders:
-            raise KeyError("Invalid folder")
-        self._folders[folder_path] = enabled
+    def delete_timer(self, timer: int) -> None:
+        """Delete timer from session."""
+        self.session.timers.remove(timer)
+        widget_deleted.send(self, widget_type="timer", value=timer)
 
     def save_session(self) -> None:
-        """Sets all current parameters in the settings_manager and saves to config.json."""
+        """Set session parameters in settings_manager and persists"""
+        self._settings_manager.write_config(self.session.copy())
+        self.last_session = self.session.copy()
 
-        data = self.session_parameters
-        self._settings_manager.write_config(data)
-        self.last_session = data
-
-    #Acessors:
+    # Acessors:
 
     @property
-    def folders(self) -> dict[str, bool]:
-        """Returns a list[tuple[str,bool]] of all folders."""
-
-        return self._folders.copy()
-
-    @property
-    def timers(self) -> list[int]:
-        """Returns a list[int] of all internal timers."""
-
-        return self._timers.copy()
-
-    @property
-    def selected_timer(self) -> int:
-        """Returns the last used timer."""
-
-        return self._selected_timer
-
-    @selected_timer.setter
-    def selected_timer(self, timer: int) -> None:
-        """Sets internal attribute to a passes timer value.
-
-                Args:
-                    :param timer: Duration in seconds.
-                """
-
-        self._selected_timer = timer
-
-    @property
-    def is_session_running(self) -> bool:
+    def session_is_running(self) -> bool:
         """Add a new timer if not already present."""
+        return self.session.is_running
 
-        return self._is_session_running
-
-    @is_session_running.setter
-    def is_session_running(self, value: bool) -> None:
-        """Add a new timer if not already present.
-
-                        Args:
-                            :param value: Boolean.
-                        """
-
-        self._is_session_running = value
-
-    @property
-    def session_parameters(self) -> dict:
+    @session_is_running.setter
+    def session_is_running(self, value: bool) -> None:
         """Add a new timer if not already present."""
+        self.session.is_running = value
 
-        return {
-            "folders": [{"path": folder_path, "enabled": enabled} for folder_path, enabled in
-                        self.folders.items()],
-            "timers": [timer for timer in self.timers],
-            "selected_timer": self.selected_timer,
-        }
-
-    def should_recalculate(self) -> bool:
-        """Returns a bool indicating whether selected folders has changed
-        since the last slideshow."""
-        previous_folders = {item.get("path", "") for item in self.last_session.get("folders", None) if item.get("enabled", False)}
-        selected_folders = {path for path, enabled in self.folders.items() if enabled}
-        if selected_folders != previous_folders:
-            return True
-        return False
-
+    def recalculate_if_should_recalculate(self) -> None:
+        """
+        Recalculates database if folders changed from last session.
+        Deleted folders are disabled folders or removed folders.
+        """
+        current_folders = set(self.session.folders.enabled)
+        if not current_folders:
+            return
+        previous_folders = set(self.last_session.folders.enabled)
+        if current_folders == previous_folders:
+            return
+        added_folders = current_folders - previous_folders
+        deleted_folders = previous_folders - current_folders
+        if deleted_folders:
+            self._database_manager.remove_rows(deleted_folders)
+        if added_folders:
+            self._database_manager.add_rows(added_folders)

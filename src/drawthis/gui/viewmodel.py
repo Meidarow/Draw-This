@@ -1,10 +1,18 @@
-import pathlib as path
 import tkinter as tk
 from tkinter import filedialog
 
-from drawthis import Model, View, start_slideshow_ogl, start_slideshow_feh
-from drawthis.app.signals import folder_added, timer_changed, widget_deleted, session_started, session_ended
-from drawthis.utils.logger import Logger
+from drawthis.app.constants import START_FOLDER
+from drawthis.app.signals import (
+    folder_added,
+    timer_changed,
+    widget_deleted,
+    session_started,
+    session_ended,
+)
+from drawthis.gui.model import Model
+from drawthis.gui.tkinter_gui import View
+from drawthis.render import SlideshowManager
+from drawthis.utils.logger import logger
 from drawthis.utils.subprocess_queue import SignalQueue
 
 """
@@ -14,8 +22,9 @@ This model is the core of Draw-This, bridging the GUI and the model, and
 initializing the slideshow.
 
 - Viewmodel:
-    Interface between the View (GUI) and the Model (State/Persistence). Provides methods to be called
-    upon by the View, and listens to signals from the Model to command the View to update.
+Interface between the View (GUI) and the Model (State/Persistence).
+Provides methods to be called by the View, and listens to signals from
+the Model to command the View to update.
 
 Usage
 -----
@@ -23,28 +32,22 @@ This file is imported by Main as a package according to the following:
      from drawthis import Viewmodel
 """
 
-START_FOLDER = path.Path("/mnt/Storage/Art/Resources")
-BACKEND_FUNCTION = start_slideshow_ogl
-DATABASE_FOLDER = path.Path("~/.config/draw-this/image_paths.db").expanduser()
 
 class Viewmodel:
-    def __init__(self):
-        self.model = Model()
-        self.view = View(self)
-        self.logger = Logger()
-        self.logger.start_log()
+    def __init__(self, gui=None, state=None):
+        self.model = state or Model()
+        self.view = gui or View(self)
         self.signal_queue = SignalQueue()
+        self.slideshow = SlideshowManager()
 
-        self._tk_folders = [(folder, tk.BooleanVar(value=enabled)) for folder, enabled in self.model.folders.items()]
-        self._tk_timers = self.model.timers
+        self.model.load_last_session()
+        self._tk_folders = [
+            (folder, tk.BooleanVar(value=enabled))
+            for folder, enabled in self.model.session.folders.all.items()
+        ]
+        self._tk_timers = self.model.session.timers.all
 
-        # Signals:
-        folder_added.connect(self._on_folder_added)
-        timer_changed.connect(self._on_timer_changed)
-        widget_deleted.connect(self._on_widget_deleted)
-        session_started.connect(self._on_session_started)
-        session_ended.connect(self._on_session_ended)
-
+        self._subscribe_to_signals()
 
     # Public API
 
@@ -54,109 +57,131 @@ class Viewmodel:
             self.view.build_gui()
             self._poll_signals()
             self.view.root.mainloop()
-        finally:
-            self.logger.end_log()
+        except Exception as e:
+            logger.critical(
+                msg=f"Execution failed due to error: {e}", exc_info=True
+            )
+            raise
 
     def add_timer(self, new_timer: tk.Entry) -> None:
         """Add a new timer selected by the user if field not empty.
 
-                Args:
-                    :param new_timer: Duration in seconds selected by the user.
-                """
+        Args:
+            :param new_timer: Duration in seconds selected by the user.
+        """
         timer = new_timer.get()
-        if timer == "" or timer == 0 or timer in self.model.timers:
+        if timer == "":
             return
-
-        self.model.add_timer(int(new_timer.get()))
+        try:
+            self.model.add_timer(int(new_timer.get()))
+        except ValueError:
+            logger.warning(f"{timer} is an Invalid timer value")
 
     def add_folder(self) -> None:
-        """Asks user for a folder and adds new folder if not already present.
-                """
-
+        """Ask user for a folder and add folder if not already present."""
         folder_path = filedialog.askdirectory(initialdir=START_FOLDER)
-        if not folder_path or folder_path in self.model.folders:
+        if not folder_path or folder_path in self.model.session.folders.all:
             return
 
         self.model.add_folder(folder_path)
 
     def delete_widget(self, widget_type: str, value: str | int) -> None:
-        self.model.delete_item(widget_type=widget_type, value=value)
+        """Remove widget of [value] from [widget_type] dict"""
+        if widget_type == "folder":
+            self.tk_folders = [p for p in self.tk_folders if p[0] != value]
+            self.model.delete_folder(value),
+        elif widget_type == "timer":
+            self.tk_timers.remove(value)
+            self.model.delete_timer(value),
 
-    def sync_folder(self, key: str, value: bool) -> None:
-        self.model.set_folder_enabled(folder_path=key,enabled=value)
+    def sync_folder(self, key: str) -> None:
+        """Update folder selected status in model"""
+        self.model.session.folders.toggle(path=key)
 
     def sync_selected_timer(self) -> None:
-        self.model.selected_timer = self.view.delay_var.get()
+        """Update timer selected status in model"""
+        self.model.set_selected_timer(self.view.delay_var.get())
 
     def start_slideshow(self) -> None:
-        if self.model.is_session_running:
+        """
+        Start a new slideshow session using the slideshow manager.
+
+        This method:
+        - Starts the slideshow lifecycle (via the configured backend).
+        - Persists current session parameters to the model.
+        - Ensures one slideshow session at a time (no-op if already running).
+
+        Assumptions:
+        - The image database has already been populated.
+        """
+        if self.slideshow.is_running:
             return
-        try:
-            # session_started.send(self)
-            slideshow_parameters = {
-                "folders": [folder for folder, enabled in self.model.folders.items() if enabled],
-                "selected_timer": self.model.selected_timer,
-                "recalculate": self.model.should_recalculate()
-            }
+        else:
+            self.model.recalculate_if_should_recalculate()
             self.model.save_session()
-            if not slideshow_parameters.get("folders"):
-                return
-            BACKEND_FUNCTION(db_path=DATABASE_FOLDER,queue= self.signal_queue, **slideshow_parameters)
-        finally:
-            return
+            self.slideshow.start(self.model.session.copy())
 
-
-    #Accessors
+    # Accessors
 
     @property
-    def tk_folders(self) -> list[tuple[str,tk.BooleanVar]]:
-        """Returns a list[tuple[str,tk.BooleanVar]] of all folders.
-                """
-
+    def tk_folders(self) -> list[tuple[str, tk.BooleanVar]]:
+        """Return the list folders, with Tkinter vars."""
         return self._tk_folders
 
     @tk_folders.setter
-    def tk_folders(self, value: list[tuple[str,tk.BooleanVar]]) -> None:
-        """Modifies a list[tuple[str,tk.BooleanVar]] of all folders.
-                """
-
+    def tk_folders(self, value: list[tuple[str, tk.BooleanVar]]) -> None:
+        """Set the list of folders, with Tkinter Vars."""
         self._tk_folders = value
 
     @property
     def tk_timers(self) -> list[int]:
-
+        """Return list of timers, just normal integers"""
         return self._tk_timers
 
     @tk_timers.setter
     def tk_timers(self, value: list[int]) -> None:
-
+        """Set list of timers, just normal integers"""
         self._tk_timers = value
 
     @property
     def last_timer(self) -> int:
-
-        return self.model.last_session.get("selected_timer", 0)
-
+        """Returns last used timer"""
+        return self.model.last_session.selected_timer
 
     # Private helpers
+
+    def _subscribe_to_signals(self):
+        folder_added.connect(self._on_folder_added)
+        timer_changed.connect(self._on_timer_changed)
+        widget_deleted.connect(self._on_widget_deleted)
+        session_started.connect(self._on_session_started)
+        session_ended.connect(self._on_session_ended)
 
     def _poll_signals(self):
         self.signal_queue.poll_queue()
         self.view.schedule(100, self._poll_signals)
 
-    def _on_widget_deleted(self, _, widget_type: str, value: str | int) -> None:
+    def _on_widget_deleted(
+        self, _, widget_type: str, value: str | int
+    ) -> None:
         self.view.delete_widget(widget_type=widget_type, widget_value=value)
+        logger.info("Widget deleted.")
 
     def _on_timer_changed(self, _) -> None:
-        self.tk_timers = self.model.timers
-        self.view.refresh_timer_gui(self.model.timers)
+        self.tk_timers = self.model.session.timers.all
+        self.view.refresh_timer_gui(self.model.session.timers.all)
+        logger.info("Timer changed.")
 
-    def _on_folder_added(self, _, folder_path) -> None:
-        self.tk_folders = [(item[0],tk.BooleanVar(value=item[1])) for item in self.model.folders.items()]
-        self.view.add_folder_gui(folder=folder_path, enabled=tk.BooleanVar(value=True))
+    def _on_folder_added(self, _, folder_path: str) -> None:
+        var = tk.BooleanVar(value=True)
+        self.tk_folders.append((folder_path, var))
+        self.view.add_folder_gui(folder=folder_path, enabled=var)
+        logger.info("Folder added.")
 
     def _on_session_started(self, _) -> None:
-        self.model.is_session_running = True
+        self.model.session_is_running = True
+        logger.info("Session started.")
 
     def _on_session_ended(self, _) -> None:
-        self.model.is_session_running = False
+        self.model.session_is_running = False
+        logger.info("Session ended.")
