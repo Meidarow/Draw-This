@@ -1,4 +1,4 @@
-from drawthis.gui.viewmodel import Viewmodel
+from drawthis.gui.tkinter_viewmodel import Viewmodel
 
 """
 Main function for Draw-This app. Initializes the app.
