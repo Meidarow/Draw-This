@@ -1,13 +1,30 @@
+from pathlib import Path
+
 from dataclasses import dataclass, field
+from enum import StrEnum
+from typing import TYPE_CHECKING
+
+
+if TYPE_CHECKING:
+    pass
+
+
+# =============================================================================
+# Settings - Extra slideshow/Idle domain
+# =============================================================================
 
 """
-This module holds the definitions for all dataclasses used for state-keeping
-in the model.
+This module holds the definitions for all dataclasses used by the
+AppSettingsService.
 
 Dataclasses:
--FolderSet: Set of folder, enabled (tuple[str,bool]) pairs
--TimerSet: Set of timers (list[int])
--Session: Set of all parameters in a Draw-This session
+-AppSettings: Set of all parameters outside a Draw-This session.
+-FolderSet: Wrapper for folders with enabled/disabled flag.
+-TimerSet: Wrapper for timers.
+
+Enums:
+-APPSETTINGS.FIELDS: Reflects fields of AppSettings, centralizing refactors
+-APPSETTINGS.DEFAULTS: Defines sane defaults for all fields of AppSettings
 """
 
 
@@ -112,35 +129,49 @@ class TimerSet:
         return TimerSet(_timers=self.all)
 
 
+class APPSETTINGS:
+    class FIELDS(StrEnum):
+        """
+        Define field keys and sane defaults for Session.
+
+        New fields may be added by:
+          - Adding it here AND in Session as follows:
+          ENUM_FIELD_NAME = "session_attribute_name"
+        """
+
+        TIMERS = "timers"
+        FOLDERS = "folders"
+
+    class DEFAULTS:
+        SETTINGS_DIR = Path().home() / ".config" / "drawthis"
+        FILE_NAME = "config.json"
+
+
 @dataclass
-class Session:
+class AppSettings:
     timers: TimerSet = field(default_factory=TimerSet)
     folders: FolderSet = field(default_factory=FolderSet)
-    selected_timer: int = 0
-    geometry: tuple = None
-    is_running: bool = False
 
     @classmethod
-    def from_dict(cls, session_dict: dict) -> "Session":
+    def from_dict(cls, session_dict: dict) -> "AppSettings":
         return cls(
-            timers=TimerSet.from_list(session_dict.get("timers", [])),
-            folders=FolderSet.from_pairs(
-                list(session_dict.get("folders", {}).items())
+            timers=TimerSet.from_list(
+                session_dict.get(APPSETTINGS.FIELDS.TIMERS, [])
             ),
-            selected_timer=session_dict.get("selected_timer", 0),
+            folders=FolderSet.from_pairs(
+                list(session_dict.get(APPSETTINGS.FIELDS.FOLDERS, {}).items())
+            ),
         )
 
     def to_dict(self) -> dict:
         session_dict = {
-            "timers": self.timers.all,
-            "folders": self.folders.all,
-            "selected_timer": self.selected_timer,
+            APPSETTINGS.FIELDS.TIMERS: self.timers.all,
+            APPSETTINGS.FIELDS.FOLDERS: self.folders.all,
         }
         return session_dict
 
-    def copy(self) -> "Session":
-        return Session(
+    def copy(self) -> "AppSettings":
+        return AppSettings(
             timers=self.timers.copy(),
             folders=self.folders.copy(),
-            selected_timer=self.selected_timer,
         )
