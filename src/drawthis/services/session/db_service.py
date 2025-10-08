@@ -1,5 +1,4 @@
 import threading
-from pathlib import Path
 from typing import (
     Iterable,
     Generator,
@@ -7,17 +6,15 @@ from typing import (
 )
 
 from drawthis.core.events.logger import logger
+
 from drawthis.core.models.session.dataclasses import (
     ImageRow,
 )
+from drawthis.core.types import PathLike
 from drawthis.persistence.session.sqlite3_backend import SQLite3Backend
 from drawthis.services.session.crawler import Crawler
 
 # Type aliases:
-
-PathLike = str | Path
-FolderInput = PathLike | Iterable[PathLike]
-
 
 """
 SQLite file lister for Draw-This.

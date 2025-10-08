@@ -1,5 +1,4 @@
 import sqlite3
-from pathlib import Path
 from typing import (
     Iterable,
     Callable,
@@ -7,14 +6,8 @@ from typing import (
     Any,
 )
 
-from drawthis.core.types import (
-    DatabaseBackend,
-)
-
-# Type aliases:
-
-PathLike = str | Path
-FolderInput = PathLike | Iterable[PathLike]
+from drawthis.core.errors import CommitError
+from drawthis.core.protocols.protocols import DatabaseBackend
 
 """
 This module defines all backends with which the DatabaseManager from Draw-This
@@ -30,14 +23,6 @@ SQLite3Backend
 Notes:
 
 """
-
-
-class DatabaseWriterError(Exception):
-    pass
-
-
-class CommitError(DatabaseWriterError):
-    """Error when attempting to commit rows to chosen database."""
 
 
 class SQLite3Backend(DatabaseBackend):

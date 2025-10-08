@@ -10,15 +10,11 @@ from typing import (
 
 from pybloom_live import BloomFilter
 
-from drawthis.core.events.logger import logger
 from drawthis.core.models.session.dataclasses import FileEntry
 from drawthis.core.protocols.protocols import (
     DirectoryScanner,
     FilterLike,
 )
-
-PathLike = str | Path
-FolderInput = PathLike | Iterable[PathLike]
 
 
 class Crawler:
@@ -43,6 +39,7 @@ class Crawler:
         on_start: Callable | None = None,
         on_end: Callable | None = None,
         on_skip: Callable[[str, Exception], None] | None = None,
+        # TODO event_bus = None,
         dir_access_fn: "DirectoryScanner" = None,
         bloom_filter: Optional["FilterLike"] = None,
     ):
