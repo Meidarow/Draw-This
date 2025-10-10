@@ -7,10 +7,10 @@ from drawthis.core.events.bus import (
     folder_added,
 )
 from drawthis.persistence.settings.json_persistence import SettingsManager
-from drawthis.services.session.db_service import DatabaseManager
+from drawthis.services.resources.file_discovery_service import DatabaseManager
 
 """
-Model to keep session state for Draw-This.
+Model to keep resources state for Draw-This.
 
 This module defines the Model and interface with persistence module.
 It has two main classes:
@@ -28,7 +28,7 @@ This file is imported by Viewmodel as a package according to the following:
 class Model:
     """Manages app state and bridges GUI with backend and persistence layers.
 
-    Do NOT mutate session from outside the model.
+    Do NOT mutate resources from outside the model.
     Attributes:
         :ivar folders (list[tuple[str, tk.BooleanVar]]):
         :ivar timers (list[int]):
@@ -44,13 +44,13 @@ class Model:
     # Public API
 
     def load_last_session(self):
-        """Explicitly load previous session from settings."""
+        """Explicitly load previous resources from settings."""
         self.last_session = self._settings_manager.read_config()
         self.session = self.last_session.copy()  # or maybe a copy
 
     def add_timer(self, timer: int) -> None:
         """
-        Add timer to session
+        Add timer to resources
 
         The timer with value 0 is internally the indefinite, default timer,
         and must not be added with add_timer
@@ -64,12 +64,12 @@ class Model:
         timer_changed.send(self)
 
     def add_folder(self, folder: str) -> None:
-        """Add folder to session"""
+        """Add folder to resources"""
         self.session.folders.add(folder)
         folder_added.send(self, folder_path=folder)
 
     def delete_folder(self, path: str) -> None:
-        """Delete folder from session."""
+        """Delete folder from resources."""
         self.session.folders.remove(path)
         widget_deleted.send(self, widget_type="folder", value=path)
 
@@ -78,12 +78,12 @@ class Model:
         self.session.selected_timer = timer
 
     def delete_timer(self, timer: int) -> None:
-        """Delete timer from session."""
+        """Delete timer from resources."""
         self.session.timers.remove(timer)
         widget_deleted.send(self, widget_type="timer", value=timer)
 
     def save_session(self) -> None:
-        """Set session parameters in settings_manager and persists"""
+        """Set resources parameters in settings_manager and persists"""
         self._settings_manager.write_config(self.session.copy())
         self.last_session = self.session.copy()
 
@@ -101,7 +101,7 @@ class Model:
 
     def recalculate_if_should_recalculate(self) -> None:
         """
-        Recalculates database if folders changed from last session.
+        Recalculates database if folders changed from last resources.
         Deleted folders are disabled folders or removed folders.
         """
         current_folders = set(self.session.folders.enabled)

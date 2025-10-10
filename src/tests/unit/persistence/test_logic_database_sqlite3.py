@@ -1,8 +1,8 @@
 import unittest
 from sqlite3 import ProgrammingError
 
-from drawthis.core.models.session.dataclasses import ImageRow
-from drawthis.persistence.session.sqlite3_backend import SQLite3Backend
+from drawthis.core.models.resources.dataclasses import ImageRow
+from drawthis.persistence.resources.sqlite3_backend import SQLite3Backend
 
 """
 Behavioral contract for SQLite3Backend:

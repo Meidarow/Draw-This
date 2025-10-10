@@ -1,8 +1,7 @@
 from abc import ABC, abstractmethod
 
-from drawthis.gui.render import start_slideshow_ogl, start_slideshow_feh
-
 from drawthis.core.models.state import Session
+from drawthis.gui.render import start_slideshow_ogl, start_slideshow_feh
 
 
 class SlideshowBackend(ABC):
@@ -30,7 +29,7 @@ class SlideshowManager:
 
     Responsibilities:
     - Start and stop the slideshow window.
-    - Report whether a slideshow session is currently active.
+    - Report whether a slideshow resources is currently active.
     - Provide hooks for backend-specific implementations (FEH, ModernGL).
 
     Usage:

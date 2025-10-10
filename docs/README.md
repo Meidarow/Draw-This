@@ -1,10 +1,10 @@
 # Draw-This
 
-**Draw-This** is a cross-platform slideshow app for artists and reference collectors.  
+**Draw-This** is a cross-platform slideshow app for artists and reference collectors.
 It can crawl folders full of images, store them in a database, and display them using different rendering backends:
 
-- **Tkinter GUI**: simple interface for folder management and session control.  
-- **FEH backend**: lightweight slideshow using the `feh` image viewer.  
+- **Tkinter GUI**: simple interface for folder management and session control.
+- **FEH backend**: lightweight slideshow using the `feh` image viewer.
 - **OpenGL backend**: custom renderer using `moderngl_window` for smooth, GPU-accelerated slideshows.
 
 The project is written in **Python 3.11+** with an **MVVM-style separation** (Model–ViewModel–View/GUI) to keep code clean and extensible.
@@ -13,12 +13,12 @@ The project is written in **Python 3.11+** with an **MVVM-style separation** (Mo
 
 ## Features
 
-- 📂 **Incremental folder crawling** — scan directories and subdirectories for images, store results in an SQLite database.  
-- 🔀 **Randomized playback** — images are assigned a random order on load.  
-- 🖼 **Multiple backends** — choose FEH (system-level) or OpenGL (GPU-accelerated).  
-- ⚡ **Rolling buffer (planned)** — keep a window of decoded textures for smooth navigation.  
-- 🗄 **Caching optimizations (planned)** — thumbnails for huge TIFF/JP2 files, lazy full decode.  
-- 🔔 **Signals & events** — GUI and backend communicate via a central signal queue.  
+- 📂 **Incremental folder crawling** — scan directories and subdirectories for images, store results in an SQLite database.
+- 🔀 **Randomized playback** — images are assigned a random order on load.
+- 🖼 **Multiple backends** — choose FEH (system-level) or OpenGL (GPU-accelerated).
+- ⚡ **Rolling buffer (planned)** — keep a window of decoded textures for smooth navigation.
+- 🗄 **Caching optimizations (planned)** — thumbnails for huge TIFF/JP2 files, lazy full decode.
+- 🔔 **Signals & events** — GUI and backend communicate via a central signal queue.
 - 🧪 **Tests included** — crawler and rendering tests with `pytest`.
 
 ---
@@ -131,32 +131,32 @@ python -m drawthis.render.opengl_backend --folders ~/Pictures/refs
 
 ### Architecture Overview
 
-- **Model (`gui/model.py`)**  
-  Holds app state: selected folders, timers, last session.  
+- **Model (`gui/model.py`)**
+  Holds app state: selected folders, timers, last session.
 
-- **ViewModel (`gui/viewmodel.py`)**  
-  Central coordinator: connects GUI events to backend actions.  
-  Starts crawlers, manages the signal queue, handles logging.  
+- **ViewModel (`gui/viewmodel.py`)**
+  Central coordinator: connects GUI events to backend actions.
+  Starts crawlers, manages the signal queue, handles logging.
 
-- **View (`gui/tkinter_gui.py`)**  
-  Tkinter-based frontend. All user interactions pass through ViewModel.  
+- **View (`gui/tkinter_gui.py`)**
+  Tkinter-based frontend. All user interactions pass through ViewModel.
 
-- **Logic (`logic/file_listing.py`)**  
-  `Crawler` walks directories and populates SQLite.  
-  `Loader` reads from SQLite (currently bulk, future: block streaming).  
+- **Logic (`logic/file_listing.py`)**
+  `Crawler` walks directories and populates SQLite.
+  `Loader` reads from SQLite (currently bulk, future: block streaming).
 
-- **Renderers (`render/*.py`)**  
-  - `feh_backend`: external viewer.  
-  - `opengl_backend`: GPU textures + event loop.  
+- **Renderers (`render/*.py`)**
+  - `feh_backend`: external viewer.
+  - `opengl_backend`: GPU textures + event loop.
 
-- **Utils (`utils/*.py`)**  
-  Helpers: persistence, logging, shaders, multiprocessing signals.  
+- **Utils (`utils/*.py`)**
+  Helpers: persistence, logging, shaders, multiprocessing signals.
 
 ---
 
 ### Coding Conventions
 
-- **Type hints**: required for new functions (`def foo(x: str) -> int:`).  
+- **Type hints**: required for new functions (`def foo(x: str) -> int:`).
 - **Docstrings**: use **Google style**:
 
   ```python
@@ -172,34 +172,34 @@ python -m drawthis.render.opengl_backend --folders ~/Pictures/refs
       """
   ```
 
-- **Constants**: put at top of file in ALL_CAPS. Example: `COMMIT_BLOCK_SIZE = 1500`.  
-- **Logging**: use `utils.logger.Logger` for now, but prefer Python’s `logging` in new code.  
-- **Events**: new events should be registered in `app/signals.py` and always sent via `SignalQueue`.  
+- **Constants**: put at top of file in ALL_CAPS. Example: `COMMIT_BLOCK_SIZE = 1500`.
+- **Logging**: use `utils.logger.Logger` for now, but prefer Python’s `logging` in new code.
+- **Events**: new events should be registered in `app/signals.py` and always sent via `SignalQueue`.
 
 ---
 
 ### Roadmap / TODOs
 
-1. **Texture & Path Prebuffering**  
-   - Implement rolling buffer with forward/back prefetch.  
-   - Asynchronous decode workers.  
+1. **Texture & Path Prebuffering**
+   - Implement rolling buffer with forward/back prefetch.
+   - Asynchronous decode workers.
 
-2. **Caching / Decoding Optimizations**  
-   - Thumbnails for huge TIFF/JP2.  
-   - Two-level cache (thumbnail vs. full).  
+2. **Caching / Decoding Optimizations**
+   - Thumbnails for huge TIFF/JP2.
+   - Two-level cache (thumbnail vs. full).
 
-3. **Database Enhancements**  
-   - Add `active` flag for deselected folders.  
-   - `Loader.block_loader()` for streaming.  
+3. **Database Enhancements**
+   - Add `active` flag for deselected folders.
+   - `Loader.block_loader()` for streaming.
 
-4. **Exceptions & Logging**  
-   - Introduce domain-specific exceptions (`CrawlerError`, `TextureDecodeError`, …).  
-   - Replace custom logger with `logging`.  
+4. **Exceptions & Logging**
+   - Introduce domain-specific exceptions (`CrawlerError`, `TextureDecodeError`, …).
+   - Replace custom logger with `logging`.
 
-5. **Documentation & Testing**  
-   - Expand unit vs. integration test coverage.  
-   - Add headless OpenGL tests.  
-   - Keep README + CONTRIBUTING.md in sync.  
+5. **Documentation & Testing**
+   - Expand unit vs. integration test coverage.
+   - Add headless OpenGL tests.
+   - Keep README + CONTRIBUTING.md in sync.
 
 ---
 
@@ -211,8 +211,8 @@ Run all tests with:
 pytest src/drawthis/tests
 ```
 
-- Unit tests cover crawler and DB insertion.  
-- Integration tests may use real folders (mark them with `pytest -m integration`).  
+- Unit tests cover crawler and DB insertion.
+- Integration tests may use real folders (mark them with `pytest -m integration`).
 - Rendering tests may require a GUI context — skip in CI unless a headless GL driver is available.
 
 ---
@@ -221,10 +221,10 @@ pytest src/drawthis/tests
 
 Pull requests are welcome! Please:
 
-1. Use type hints in all new code.  
-2. Follow Google-style docstrings.  
-3. Run `pytest` before submitting.  
-4. Use `black` for formatting and `flake8` for linting.  
+1. Use type hints in all new code.
+2. Follow Google-style docstrings.
+3. Run `pytest` before submitting.
+4. Use `black` for formatting and `flake8` for linting.
 
 See [`CONTRIBUTING.md`](CONTRIBUTING.md) for more details.
 
@@ -232,12 +232,12 @@ See [`CONTRIBUTING.md`](CONTRIBUTING.md) for more details.
 
 ## License
 
-[MIT License](LICENSE)
+[MIT License](../LICENSE)
 
 ---
 
 ## Acknowledgements
 
-- [moderngl_window](https://moderngl-window.readthedocs.io/) for the OpenGL framework.  
-- [FEH](https://feh.finalrewind.org/) for lightweight image viewing.  
-- Pillow and NumPy for image handling.  
+- [moderngl_window](https://moderngl-window.readthedocs.io/) for the OpenGL framework.
+- [FEH](https://feh.finalrewind.org/) for lightweight image viewing.
+- Pillow and NumPy for image handling.

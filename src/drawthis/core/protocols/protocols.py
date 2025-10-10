@@ -152,7 +152,7 @@ class JsonSettingsPersistence(Persistence, ABC):
         self.on_write_error = on_write_error
 
     def read_file(self):
-        """Parse file and restores previous session's final values."""
+        """Parse file and restores previous resources's final values."""
         if not self.settings_file.exists():
             self.settings_file.touch()
         data = None
@@ -169,7 +169,7 @@ class JsonSettingsPersistence(Persistence, ABC):
         return self._make_object(merged)
 
     def write_file(self, model_object):
-        """Create file and stores the current session's values."""
+        """Create file and stores the current resources's values."""
         model_object_dict = self._make_dict(model_object)
         try:
             self._safe_json_write(self.settings_file, model_object_dict)

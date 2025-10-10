@@ -10,7 +10,7 @@ from typing import (
 
 from pybloom_live import BloomFilter
 
-from drawthis.core.models.session.dataclasses import FileEntry
+from drawthis.core.models.resources.dataclasses import FileEntry
 from drawthis.core.protocols.protocols import (
     DirectoryScanner,
     FilterLike,

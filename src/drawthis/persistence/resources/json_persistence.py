@@ -1,4 +1,4 @@
-from drawthis.core.models.session.dataclasses import Session
+from drawthis.core.models.resources.dataclasses import Session
 from drawthis.core.types import JsonSettingsPersistence
 
 """
@@ -11,7 +11,7 @@ It has a single class:
 - SettingsManager:
 Manages persistence of app state (folders, timers, selected timer) across
 multiple runs
-and can store previous session parameters in a JSON file in ~/.config/.
+and can store previous resources parameters in a JSON file in ~/.config/.
 
 Usage
 -----

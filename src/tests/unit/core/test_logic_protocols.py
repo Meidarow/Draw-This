@@ -1,10 +1,10 @@
 import random
 import sys
 import unittest
-from typing import Callable, NamedTuple
+from typing import NamedTuple
 from unittest import mock
 
-from drawthis.core.models.session.dataclasses import FileEntry, ImageRow
+from drawthis.core.models.resources.dataclasses import FileEntry, ImageRow
 from drawthis.core.protocols.protocols import *
 
 _stat_result: "StatLike"

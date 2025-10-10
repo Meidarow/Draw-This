@@ -5,6 +5,7 @@ from drawthis.core.constants import START_FOLDER
 from drawthis.core.events.logger import logger
 from drawthis.core.events.subprocess_queue import SignalQueue
 from drawthis.gui.render import SlideshowManager
+from drawthis.gui.tkinter_gui import View
 
 from drawthis.core.events.bus import (
     folder_added,
@@ -13,8 +14,7 @@ from drawthis.core.events.bus import (
     session_started,
     session_ended,
 )
-from drawthis.gui.tkinter_gui import View
-from drawthis.services.settings.GODLESS_MODEL_service import Model
+from drawthis.services.settings.user_preferences_service import Model
 
 """
 Viewmodel for Draw-This.
@@ -105,12 +105,12 @@ class Viewmodel:
 
     def start_slideshow(self) -> None:
         """
-        Start a new slideshow session using the slideshow manager.
+        Start a new slideshow resources using the slideshow manager.
 
         This method:
         - Starts the slideshow lifecycle (via the configured backend).
-        - Persists current session parameters to the model.
-        - Ensures one slideshow session at a time (no-op if already running).
+        - Persists current resources parameters to the model.
+        - Ensures one slideshow resources at a time (no-op if already running).
 
         Assumptions:
         - The image database has already been populated.

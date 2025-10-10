@@ -7,12 +7,12 @@ import moderngl_window as mglw
 import moderngl_window.context.glfw
 import numpy as np
 from PIL import UnidentifiedImageError, Image
-from moderngl_window.context.base import KeyModifiers
-
 from drawthis.core.constants import DATABASE_FILE
 from drawthis.core.events.logger import logger
+from moderngl_window.context.base import KeyModifiers
+
 from drawthis.gui.shaders.shader_parser import parse_shader
-from drawthis.services.session.db_service import DatabaseManager
+from drawthis.services.resources.file_discovery_service import DatabaseManager
 
 """
 OpenGL Backend for Draw-This.
@@ -102,7 +102,7 @@ class RenderWindow(mglw.WindowConfig):
         self.vao.render()
 
     def on_close(self) -> None:
-        """Close window and signal session end"""
+        """Close window and signal resources end"""
         self.queue.put("session_ended")
         self.wnd.is_closing = True
 
@@ -309,7 +309,7 @@ def start_slideshow_ogl(
 def run_render_window(
     queue: multiprocessing.Queue, geometry: tuple[int, int, int, int]
 ) -> None:
-    """Run OpenGL window and signal session-start to block Frontend"""
+    """Run OpenGL window and signal resources-start to block Frontend"""
     config = window_factory(queue, geometry)
 
     # Queue event in SignalQueue

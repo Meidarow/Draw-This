@@ -1,9 +1,7 @@
-from pathlib import Path
-
 from dataclasses import dataclass, field
 from enum import StrEnum
+from pathlib import Path
 from typing import TYPE_CHECKING
-
 
 if TYPE_CHECKING:
     pass
@@ -18,7 +16,7 @@ This module holds the definitions for all dataclasses used by the
 AppSettingsService.
 
 Dataclasses:
--AppSettings: Set of all parameters outside a Draw-This session.
+-AppSettings: Set of all parameters outside a Draw-This resources.
 -FolderSet: Wrapper for folders with enabled/disabled flag.
 -TimerSet: Wrapper for timers.
 
@@ -29,6 +27,11 @@ Enums:
 
 
 @dataclass
+class Folder:
+    ...
+
+
+@dataclass(frozen=True)
 class FolderSet:
     """
     Wrapper for a set of folders

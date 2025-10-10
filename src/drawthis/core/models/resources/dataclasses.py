@@ -63,7 +63,7 @@ class FileEntry:
 class ImageRow(NamedTuple):
     """
     Dataclass containing all fields for the slideshow backend solution.
-    The session domain's persistence layer only uses this object type
+    The resources domain's persistence layer only uses this object type
     internally.
 
     This object defines all the fields or columns that MUST be present in an
@@ -101,7 +101,7 @@ This module holds the definitions for all dataclasses used by the
 SlideshowService.
 
 Dataclasses:
--Session: Set of all parameters in a Draw-This session
+-Session: Set of all parameters in a Draw-This resources
 
 Enums:
 -SESSION.FIELDS: Reflects fields of Session, centralizing refactors
@@ -143,7 +143,7 @@ class Session:
     Fields:
         selected_timer: Time during which a slide is SHOWN
         geometry: Size and position of the window for the slideshow
-        is_running: Flag indicating whether a session is ongoing
+        is_running: Flag indicating whether a resources is ongoing
     """
 
     selected_timer: int = SESSION.DEFAULTS.SELECTED_TIMER

@@ -3,7 +3,8 @@ import subprocess
 import tempfile
 
 from drawthis.core.constants import DATABASE_FILE
-from drawthis.services.session.db_service import DatabaseManager
+
+from drawthis.services.resources.file_discovery_service import DatabaseManager
 
 """
 FEH Backend for Draw-This.

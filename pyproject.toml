@@ -6,7 +6,7 @@ authors = [
     {name = "Meidarow",email = "60526952+Meidarow@users.noreply.github.com"}
 ]
 readme = "README.md"
-requires-python = ">=3.12,<3.15"
+requires-python = ">=3.12,<3.14"
 dependencies = [
     "moderngl-window (>=3.1.1,<4.0.0)",
     "blinker (>=1.9.0,<2.0.0)",
@@ -16,6 +16,7 @@ dependencies = [
     "pillow-simd (>=9.5.0.post2,<10.0.0)",
     "pybloom-live (>=4.0.0,<5.0.0)",
     "notebook (>=7.4.7,<8.0.0)",
+    "pyside6 (>=6.10.0,<7.0.0)",
 ]
 packages = []
 

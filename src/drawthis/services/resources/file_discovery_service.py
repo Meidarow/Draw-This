@@ -5,16 +5,12 @@ from typing import (
     Any,
 )
 
-from drawthis.core.events.logger import logger
-
-from drawthis.core.models.session.dataclasses import (
+from drawthis.core.models.resources.dataclasses import (
     ImageRow,
 )
 from drawthis.core.types import PathLike
-from drawthis.persistence.session.sqlite3_backend import SQLite3Backend
-from drawthis.services.session.crawler import Crawler
-
-# Type aliases:
+from drawthis.persistence.resources.sqlite3_backend import SQLite3Backend
+from drawthis.services.resources.crawler import Crawler
 
 """
 SQLite file lister for Draw-This.
@@ -38,10 +34,10 @@ This file is imported as a package according to the following:
 """
 
 
-class DatabaseManager:
+class FileDiscoveryService:
     """
     Orchestrates database operations and provides API to add and remove rows,
-    mark files as seen for session persistence and randomize the database.
+    mark files as seen for resources persistence and randomize the database.
 
     Handles:
       - Batching paths before insert
@@ -150,15 +146,16 @@ class DatabaseManager:
         """
         self.backend.remove_rows(folders)
 
-    def update_seen(self, folders: Iterable[PathLike]):
-        # TODO to be implemented once async loading is possible
-        self.backend.mark_seen(folders)
-
-    def load_all_rows(self):
-        """
-        Return all database entries.
-
-        Legacy Loader soluction simply adapted into the new framework.
-        TODO remove once async loader has been implemented
-        """
-        return self.backend.load_whole_database()
+    #
+    # def update_seen(self, folders: Iterable[PathLike]):
+    #     # TODO to be implemented once async loading is possible
+    #     self.backend.mark_seen(folders)
+    #
+    # def load_all_rows(self):
+    #     """
+    #     Return all database entries.
+    #
+    #     Legacy Loader soluction simply adapted into the new framework.
+    #     TODO remove once async loader has been implemented
+    #     """
+    #     return self.backend.load_whole_database()

@@ -5,5 +5,3 @@ from typing import Iterable
 
 PathLike = str | Path
 FolderInput = PathLike | Iterable[PathLike]
-
-# Static dataclasses
