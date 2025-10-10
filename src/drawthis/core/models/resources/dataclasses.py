@@ -7,7 +7,7 @@ from typing import (
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from drawthis.core.protocols.protocols import DirEntryLike
+    from drawthis.core.protocols.protocols import DirEntryLike, Model
 
 """
 This module defines all dataclasses used in the Session domain.
@@ -136,7 +136,7 @@ class SESSION:
 
 
 @dataclass(frozen=True)
-class Session:
+class Session(Model):
     """
     Contain all parameters used for slideshow sessions
 

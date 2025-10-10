@@ -1,11 +1,13 @@
 import json
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
 from pathlib import Path
 from typing import (
     Iterable,
     Any,
     Optional,
     Callable,
+    TypeVar,
 )
 from typing import (
     runtime_checkable,
@@ -13,7 +15,7 @@ from typing import (
     Iterator,
 )
 
-from drawthis.core.types import PathLike
+from drawthis.core.types import PathLike, ModelDataclass
 
 
 # =============================================================================
@@ -120,6 +122,37 @@ class DatabaseBackend(ABC):
 
 
 # =============================================================================
+# Models - Immutable dataclasses for settings domain
+# =============================================================================
+
+
+@dataclass(frozen=True)
+class Model(ABC):
+    """
+    Model dataclasses are expected to be serializable into dicts for
+    compatibility with the JSON persistence modules.
+    """
+
+    file_name: str
+    settings_dir_path: PathLike
+
+    @abstractmethod
+    def to_dict(self):
+        ...
+
+    @classmethod
+    @abstractmethod
+    def from_dict(cls, dict):
+        ...
+
+    @abstractmethod
+    def copy_with(self, **params):
+        ...
+
+
+ModelType = TypeVar("ModelType", bound=Model)
+
+# =============================================================================
 # JSON Persistence - Settings domain only (for slideshow and app)
 # =============================================================================
 #   This module could be slightly modified to use generic typevars,
@@ -127,7 +160,7 @@ class DatabaseBackend(ABC):
 #   "settings domain" Model dataclasses.
 
 
-class Persistence(Protocol):
+class Persistence(Protocol[ModelType]):
     def read_file(self):
         ...
 
@@ -138,16 +171,14 @@ class Persistence(Protocol):
 class JsonSettingsPersistence(Persistence, ABC):
     def __init__(
         self,
-        settings_dir_path: PathLike,
-        file_name: str,
-        model_cls: Any,
+        model_cls: ModelType,
         on_write_error: Optional[Callable],
         on_read_error: Optional[Callable],
     ):
-        self.settings_dir_path = Path(settings_dir_path)
-        self.settings_dir_path.mkdir(parents=True, exist_ok=True)
-        self.settings_file = self.settings_dir_path / file_name
         self.model_cls = model_cls
+        self.settings_dir_path = Path(self.model_cls.settings_dir_path)
+        self.settings_dir_path.mkdir(parents=True, exist_ok=True)
+        self.settings_file = self.settings_dir_path / self.model_cls.file_name
         self.on_read_error = on_read_error
         self.on_write_error = on_write_error
 

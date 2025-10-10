@@ -3,6 +3,9 @@ from enum import StrEnum
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from drawthis.core.protocols.protocols import Model
+from drawthis.core.types import PathLike
+
 if TYPE_CHECKING:
     pass
 
@@ -26,13 +29,14 @@ Enums:
 """
 
 
-@dataclass
+@dataclass(frozen=True)
 class Folder:
-    ...
+    name: PathLike
+    enabled: bool
 
 
 @dataclass(frozen=True)
-class FolderSet:
+class FolderSet(Model):
     """
     Wrapper for a set of folders
 
@@ -40,7 +44,7 @@ class FolderSet:
     - Folders are always unique (no duplicates), keyed by folder name
     """
 
-    _folders: dict[str, bool] = field(default_factory=dict)
+    _folders: list[Folder] = field(default_factory=list)
 
     @classmethod
     def from_pairs(cls, pairs: list[tuple[str, bool]]) -> "FolderSet":
@@ -91,8 +95,8 @@ class FolderSet:
         return FolderSet(_folders=self.all)
 
 
-@dataclass
-class TimerSet:
+@dataclass(frozen=True)
+class TimerSet(Model):
     """
     Wrapper for a set of timers
 
@@ -150,7 +154,7 @@ class APPSETTINGS:
         FILE_NAME = "config.json"
 
 
-@dataclass
+@dataclass(frozen=True)
 class AppSettings:
     timers: TimerSet = field(default_factory=TimerSet)
     folders: FolderSet = field(default_factory=FolderSet)
