@@ -1,4 +1,4 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from enum import StrEnum
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -33,6 +33,10 @@ Enums:
 class Folder:
     name: PathLike
     enabled: bool
+
+    def copy_with(self, **changes):
+        """Return a new Folder with the given fields replaced."""
+        return replace(self, **changes)
 
 
 @dataclass(frozen=True)
