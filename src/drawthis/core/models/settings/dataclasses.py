@@ -58,27 +58,35 @@ class FolderSet(Model):
             fs.add(path, enabled)
         return fs
 
-    def add(self, path: str, enabled: bool = True) -> None:
+    def add(self, path: str, enabled: bool = True) -> "FolderSet":
         """Add a folder with optional enabled state."""
-        self._folders[path] = enabled
+        old_data = self._folders.copy()
+        old_data.append(Folder(path, enabled))
+        return replace(self, _folders=old_data)
 
-    def remove(self, path: str) -> None:
+    def remove(self, path: str) -> "FolderSet":
         """Remove a folder."""
-        self._folders.pop(path, None)
+        old_data = [folder for folder in self._folders if folder.name != path]
+        return replace(self, _folders=old_data)
 
-    def toggle(self, path: str) -> None:
-        """Flip enabled/disabled state for a folder."""
-        if path in self._folders:
-            self._folders[path] = not self._folders[path]
-
-    def enable(self, path: str) -> None:
+    def enable(self, path: str) -> "FolderSet":
         """Enable a folder explicitly."""
-        self._folders[path] = True
+        old_data = [
+            Folder(path, True) if folder.name == path else folder
+            for folder in self._folders
+        ]
+        return replace(self, _folders=old_data)
 
-    def disable(self, path: str) -> None:
+    def disable(self, path: str) -> "FolderSet":
         """Disable a folder explicitly."""
-        self._folders[path] = False
+        old_data = [
+            Folder(path, False) if folder.name == path else folder
+            for folder in self._folders
+        ]
+        return replace(self, _folders=old_data)
 
+    # TODO: Re create all the below listed properties, and add the folderset
+    #  enabled property, for partial/total/none enabled statuses
     @property
     def enabled(self) -> list[str]:
         """Return only enabled folders."""
