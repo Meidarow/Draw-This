@@ -15,7 +15,7 @@ from typing import (
     Iterator,
 )
 
-from drawthis.core.types import PathLike, ModelDataclass
+from drawthis.core.types import PathLike
 
 
 # =============================================================================
@@ -143,10 +143,6 @@ class Model(ABC):
     @classmethod
     @abstractmethod
     def from_dict(cls, dict):
-        ...
-
-    @abstractmethod
-    def copy_with(self, **params):
         ...
 
 

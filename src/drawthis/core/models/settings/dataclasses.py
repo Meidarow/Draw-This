@@ -38,6 +38,10 @@ class Folder:
         """Return a new Folder with the given fields replaced."""
         return replace(self, **changes)
 
+    def to_dict(self) -> dict[PathLike, bool]:
+        """Return serialized dict of Folder object."""
+        ...
+
 
 @dataclass(frozen=True)
 class FolderSet(Model):
@@ -52,7 +56,7 @@ class FolderSet(Model):
 
     @classmethod
     def from_pairs(cls, pairs: list[tuple[str, bool]]) -> "FolderSet":
-        """Factory for FolderSet, from (path, enabled) pairs"""
+        """Factory for FolderSet, from (path, enabled) pairs."""
         fs = cls()
         for path, enabled in pairs:
             fs.add(path, enabled)
@@ -85,26 +89,29 @@ class FolderSet(Model):
         ]
         return replace(self, _folders=old_data)
 
-    # TODO: Re create all the below listed properties, and add the folderset
-    #  enabled property, for partial/total/none enabled statuses
+    def to_dict(self) -> dict[str, bool]:
+        """Raw view of all folders and states."""
+        return dict(self._folders)
+
+    def from_dict(cls, dict):
+        ...
+
+    # Accessors
+
     @property
     def enabled(self) -> list[str]:
         """Return only enabled folders."""
-        return [f for f, e in self._folders.items() if e]
+        return [folder.name for folder in self._folders if folder.enabled]
 
     @property
     def disabled(self) -> list[str]:
         """Return only disabled folders."""
-        return [f for f, e in self._folders.items() if not e]
+        return [folder.name for folder in self._folders if not folder.enabled]
 
     @property
-    def all(self) -> dict[str, bool]:
-        """Raw view of all folders and states."""
-        return dict(self._folders)
-
-    def copy(self) -> "FolderSet":
-        """Return identical copy of self"""
-        return FolderSet(_folders=self.all)
+    def status(self):
+        """Return enabled status for FolderSet"""
+        return
 
 
 @dataclass(frozen=True)
