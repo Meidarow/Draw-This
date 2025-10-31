@@ -1,7 +1,6 @@
 from dataclasses import dataclass, field, replace
 from enum import StrEnum
-from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 from drawthis.core.protocols.protocols import Model
 from drawthis.core.types import PathLike
@@ -31,16 +30,30 @@ Enums:
 
 @dataclass(frozen=True)
 class Folder:
-    name: PathLike
+    path: PathLike
     enabled: bool
+    display_name: Optional[str] = None
 
-    def copy_with(self, **changes):
-        """Return a new Folder with the given fields replaced."""
-        return replace(self, **changes)
+    class Fields(StrEnum):
+        PATH = "path"
+        NAME = "name"
+        ENABLED = "enabled"
 
-    def to_dict(self) -> dict[PathLike, bool]:
+    @classmethod
+    def from_dict(cls, data):
+        return Folder(
+            path=data[cls.Fields.PATH],
+            enabled=data[cls.Fields.ENABLED],
+            display_name=data[cls.Fields.NAME],
+        )
+
+    def to_dict(self) -> dict[str, PathLike | str | bool]:
         """Return serialized dict of Folder object."""
-        ...
+        return {
+            self.Fields.PATH: self.path,
+            self.Fields.NAME: self.display_name,
+            self.Fields.ENABLED: self.enabled,
+        }
 
 
 @dataclass(frozen=True)
@@ -49,69 +62,73 @@ class FolderSet(Model):
     Wrapper for a set of folders
 
     Guarantees:
-    - Folders are always unique (no duplicates), keyed by folder name
+    - Folders are always unique (no duplicates), keyed by folder path
     """
 
     _folders: list[Folder] = field(default_factory=list)
 
+    class State(StrEnum):
+        ENABLED = "enabled"
+        PARTIAL = "partial"
+        DISABLED = "disabled"
+
     @classmethod
-    def from_pairs(cls, pairs: list[tuple[str, bool]]) -> "FolderSet":
-        """Factory for FolderSet, from (path, enabled) pairs."""
-        fs = cls()
-        for path, enabled in pairs:
-            fs.add(path, enabled)
-        return fs
+    def from_dict(cls, data):
+        folders = data["folders"]
+        if not folders:
+            raise ValueError("No valid folders given")
+        return cls(_folders=[Folder.from_dict(fd) for fd in folders])
 
     def add(self, path: str, enabled: bool = True) -> "FolderSet":
         """Add a folder with optional enabled state."""
-        old_data = self._folders.copy()
-        old_data.append(Folder(path, enabled))
-        return replace(self, _folders=old_data)
+        if any(folder.path == path for folder in self._folders):
+            return self
+        new_data = self._folders + [Folder(path=path, enabled=enabled)]
+        return replace(self, _folders=new_data)
 
     def remove(self, path: str) -> "FolderSet":
         """Remove a folder."""
-        old_data = [folder for folder in self._folders if folder.name != path]
-        return replace(self, _folders=old_data)
+        new_data = [folder for folder in self._folders if folder.path != path]
+        return replace(self, _folders=new_data)
 
-    def enable(self, path: str) -> "FolderSet":
+    def set_folder_enabled(self, path: str, enabled: bool) -> "FolderSet":
         """Enable a folder explicitly."""
-        old_data = [
-            Folder(path, True) if folder.name == path else folder
+        new_data = [
+            replace(folder, enabled=enabled) if folder.path == path else folder
             for folder in self._folders
         ]
-        return replace(self, _folders=old_data)
+        return replace(self, _folders=new_data)
 
-    def disable(self, path: str) -> "FolderSet":
-        """Disable a folder explicitly."""
-        old_data = [
-            Folder(path, False) if folder.name == path else folder
-            for folder in self._folders
-        ]
-        return replace(self, _folders=old_data)
-
-    def to_dict(self) -> dict[str, bool]:
+    def to_dict(self) -> list[dict[str, bool]]:
         """Raw view of all folders and states."""
-        return dict(self._folders)
-
-    def from_dict(cls, dict):
-        ...
+        return [item.to_dict() for item in self._folders]
 
     # Accessors
 
     @property
     def enabled(self) -> list[str]:
         """Return only enabled folders."""
-        return [folder.name for folder in self._folders if folder.enabled]
+        return [folder.path for folder in self._folders if folder.enabled]
 
     @property
     def disabled(self) -> list[str]:
         """Return only disabled folders."""
-        return [folder.name for folder in self._folders if not folder.enabled]
+        return [folder.path for folder in self._folders if not folder.enabled]
 
     @property
-    def status(self):
+    def state(self) -> "FolderSet.State":
         """Return enabled status for FolderSet"""
-        return
+        if not self._folders:
+            return FolderSet.State.DISABLED
+
+        enabled_count = sum(1 for item in self._folders if item.enabled)
+
+        if enabled_count == len(self._folders):
+            return FolderSet.State.ENABLED
+        elif enabled_count == 0:
+            return FolderSet.State.DISABLED
+        else:
+            return FolderSet.State.PARTIAL
 
 
 @dataclass(frozen=True)
@@ -134,70 +151,22 @@ class TimerSet(Model):
             ts.add(timer)
         return ts
 
-    def add(self, timer: int) -> None:
+    def add(self, timer: int) -> "TimerSet":
         """Add a new timer if not already present, then sort timer list"""
         if timer in self._timers:
-            return
-        self._timers.append(timer)
-        self._timers = sorted(self._timers)
+            return self
+        timers = self._timers.copy()
+        timers.append(timer)
+        timers = sorted(timers)
+        return replace(self, _timers=timers)
 
-    def remove(self, timer: int) -> None:
+    def remove(self, timer: int) -> "TimerSet":
         """Remove a timer"""
-        self._timers.remove(timer)
+        timers = self._timers.copy()
+        timers.remove(timer)
+        return replace(self, _timers=timers)
 
     @property
     def all(self) -> list[int]:
         """Raw view of all timers"""
         return list(self._timers)
-
-    def copy(self) -> "TimerSet":
-        """Return identical copy of self"""
-        return TimerSet(_timers=self.all)
-
-
-class APPSETTINGS:
-    class FIELDS(StrEnum):
-        """
-        Define field keys and sane defaults for Session.
-
-        New fields may be added by:
-          - Adding it here AND in Session as follows:
-          ENUM_FIELD_NAME = "session_attribute_name"
-        """
-
-        TIMERS = "timers"
-        FOLDERS = "folders"
-
-    class DEFAULTS:
-        SETTINGS_DIR = Path().home() / ".config" / "drawthis"
-        FILE_NAME = "config.json"
-
-
-@dataclass(frozen=True)
-class AppSettings:
-    timers: TimerSet = field(default_factory=TimerSet)
-    folders: FolderSet = field(default_factory=FolderSet)
-
-    @classmethod
-    def from_dict(cls, session_dict: dict) -> "AppSettings":
-        return cls(
-            timers=TimerSet.from_list(
-                session_dict.get(APPSETTINGS.FIELDS.TIMERS, [])
-            ),
-            folders=FolderSet.from_pairs(
-                list(session_dict.get(APPSETTINGS.FIELDS.FOLDERS, {}).items())
-            ),
-        )
-
-    def to_dict(self) -> dict:
-        session_dict = {
-            APPSETTINGS.FIELDS.TIMERS: self.timers.all,
-            APPSETTINGS.FIELDS.FOLDERS: self.folders.all,
-        }
-        return session_dict
-
-    def copy(self) -> "AppSettings":
-        return AppSettings(
-            timers=self.timers.copy(),
-            folders=self.folders.copy(),
-        )
