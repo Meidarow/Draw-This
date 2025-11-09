@@ -2,13 +2,30 @@ from abc import ABC, abstractmethod
 from typing import (
     Iterable,
     Any,
-    TypeVar,
 )
 from typing import (
     Protocol,
 )
 
-from iteradraw.domain.models.interfaces import Model
+"""
+Interface protocols for the persistence layer of Iteradraw.
+
+This module defines protocols that apply generically and universally to all 
+backend implementations meant for persistence, with the intention of 
+simplyfying persistence operations, encapsulating persistence domain 
+knowledge to its layer and allowing hot-swapping of backends
+
+Iteradraw uses persistence in two ways: settings and session storage for 
+user-preferences and content, and for resource management during slideshow 
+sessions. 
+
+Classes:
+    DatabaseBackend: protocol for session resource management backends.
+    Persistence: protocol for settings/user-prefs/content backends.
+ 
+Usage:
+
+"""
 
 
 class DatabaseBackend(ABC):
@@ -68,12 +85,15 @@ class DatabaseBackend(ABC):
         """
 
 
-ModelType = TypeVar("ModelType", bound=Model)
+class Persistence(Protocol):
+    """
+    Persistence protocol for domain objects, intended for user-preferences
+    and content.
 
+    Defines API that must be public in concrete implementations for
+    hot-swappale backends to properly be consumed by the repository layer.
+    """
 
-class Persistence(Protocol[ModelType]):
-    def read_file(self):
-        ...
+    def read_file(self): ...
 
-    def write_file(self, model_object):
-        ...
+    def write_file(self, namespace): ...

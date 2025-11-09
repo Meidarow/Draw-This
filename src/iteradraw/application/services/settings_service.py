@@ -25,7 +25,7 @@ This file is imported by Viewmodel as a package according to the following:
 """
 
 
-class Model:
+class ModelSessionLegacy:
     """Manages app state and bridges GUI with backend and persistence layers.
 
     Do NOT mutate resources from outside the model.
@@ -89,32 +89,30 @@ class Model:
 
     # Acessors:
 
+    @property
+    def session_is_running(self) -> bool:
+        """Add a new timer if not already present."""
+        return self.session.is_running
 
-# TODO this logic does not belong in the model
-# @property
-# def session_is_running(self) -> bool:
-#     """Add a new timer if not already present."""
-#     return self.session.is_running
-#
-# @session_is_running.setter
-# def session_is_running(self, value: bool) -> None:
-#     """Add a new timer if not already present."""
-#     self.session.is_running = value
-#
-# def recalculate_if_should_recalculate(self) -> None:
-#     """
-#     Recalculates database if folders changed from last resources.
-#     Deleted folders are disabled folders or removed folders.
-#     """
-#     current_folders = set(self.session.folders.enabled)
-#     if not current_folders:
-#         return
-#     previous_folders = set(self.last_session.folders.enabled)
-#     if current_folders == previous_folders:
-#         return
-#     added_folders = current_folders - previous_folders
-#     deleted_folders = previous_folders - current_folders
-#     if deleted_folders:
-#         self._database_manager.remove_rows(deleted_folders)
-#     if added_folders:
-#         self._database_manager.add_rows(added_folders)
+    @session_is_running.setter
+    def session_is_running(self, value: bool) -> None:
+        """Add a new timer if not already present."""
+        self.session.is_running = value
+
+    def recalculate_if_should_recalculate(self) -> None:
+        """
+        Recalculates database if folders changed from last resources.
+        Deleted folders are disabled folders or removed folders.
+        """
+        current_folders = set(self.session.folders.enabled)
+        if not current_folders:
+            return
+        previous_folders = set(self.last_session.folders.enabled)
+        if current_folders == previous_folders:
+            return
+        added_folders = current_folders - previous_folders
+        deleted_folders = previous_folders - current_folders
+        if deleted_folders:
+            self._database_manager.remove_rows(deleted_folders)
+        if added_folders:
+            self._database_manager.add_rows(added_folders)

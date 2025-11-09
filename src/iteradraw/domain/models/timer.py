@@ -4,28 +4,19 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     pass
 
-
-# =============================================================================
-# Settings - Extra slideshow/Idle domain
-# =============================================================================
-
 """
 This module holds the definitions for all dataclasses used by the
 AppSettingsService.
 
-Dataclasses:
--AppSettings: Set of all parameters outside a Draw-This resources.
--FolderSet: Wrapper for folders with enabled/disabled flag.
--TimerSet: Wrapper for timers.
+Classes:
+    TimerSet: Wrapper for timers.
 
-Enums:
--APPSETTINGS.FIELDS: Reflects fields of AppSettings, centralizing refactors
--APPSETTINGS.DEFAULTS: Defines sane defaults for all fields of AppSettings
+Usage:
 """
 
 
 @dataclass(frozen=True)
-class TimerSet(Model):
+class TimerSet:
     """
     Wrapper for a set of timers
 
@@ -35,14 +26,6 @@ class TimerSet(Model):
     """
 
     _timers: list[int] = field(default_factory=list)
-
-    @classmethod
-    def from_list(cls, timers: list[int]) -> "TimerSet":
-        """Factory for TimerSet from list of timers"""
-        ts = cls()
-        for timer in timers:
-            ts.add(timer)
-        return ts
 
     def add(self, timer: int) -> "TimerSet":
         """Add a new timer if not already present, then sort timer list"""

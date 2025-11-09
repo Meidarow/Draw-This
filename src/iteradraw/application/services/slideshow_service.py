@@ -1,25 +1,3 @@
-from abc import ABC, abstractmethod
-
-from drawthis.core.models.state import Session
-from drawthis.gui.render import start_slideshow_ogl, start_slideshow_feh
-
-
-class SlideshowBackend(ABC):
-    @abstractmethod
-    def start(self, session: Session):
-        pass
-
-
-class FehBackend(SlideshowBackend):
-    def start(self, session: Session = None):
-        start_slideshow_feh(**session.to_dict())
-
-
-class OGLBackend(SlideshowBackend):
-    def start(self, session: Session = None):
-        start_slideshow_ogl(**session.to_dict())
-
-
 class SlideshowManager:
     """
     High-level controller for slideshow backends.

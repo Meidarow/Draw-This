@@ -1,12 +1,19 @@
+import random
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, NamedTuple
 
 if TYPE_CHECKING:
-    from iteradraw.domain.repositories.protocols import DirEntryLike
+    from iteradraw.infrastructure.filesystem.interfaces import DirEntryLike
 
-# =============================================================================
-# Session - Persistence and Database dataclasses
-# =============================================================================
+"""
+This module holds the definitions for all dataclasses used by the
+AppSettingsService.
+
+Classes:
+    TimerSet: Wrapper for timers.
+
+Usage:
+"""
 
 
 @dataclass
