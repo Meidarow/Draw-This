@@ -1,12 +1,14 @@
 from drawthis.gui.tkinter_viewmodel import Viewmodel
 
 """
-Main function for Draw-This app. Initializes the app.
+Bootstapper for Iteradraw app. 
+
+Builds the application.
 
 Usage
 -----
 Run this file directly to start the app:
-    python main.py
+    python bootstrap.py
 """
 
 

@@ -1,0 +1,77 @@
+"""
+Dependency injection container for Iteradraw.
+
+Defines the DI injection blocks for components of the application,
+to be called by the boostrapper at app initialization.
+"""
+
+from iteradraw.application.commands.folder_commands import (
+    AddFolderCommand,
+    RemoveFolderCommand,
+    RenameFolderSetCommand,
+)
+from iteradraw.application.handlers.folder_handlers import (
+    AddFolderCommandHandler,
+    RemoveFolderCommandHandler,
+    RenameFolderSetCommandHandler,
+)
+from iteradraw.domain.repositories.folder_repository import FolderRepository
+from iteradraw.infrastructure.buses.command_bus import CommandBus
+from iteradraw.infrastructure.buses.event_bus import EventBus
+from iteradraw.infrastructure.persistence.sqlite3_domain_database import (
+    SQLite3DomainDatabase,
+)
+
+
+class CommandAssignments:
+    def __init__(self): ...
+
+    def _instantiate_shared_objects(self):
+        self.event_bus = EventBus()
+        self.command_bus = CommandBus()
+        self.folder_repo = FolderRepository(
+            persistence=SQLite3DomainDatabase(db_path="")
+        )
+
+    def _assign_folder_command_handlers(self):
+        add_folder_handler = AddFolderCommandHandler(
+            folder_repo=self.folder_repo
+        )
+        self.command_bus.register(
+            command_type=AddFolderCommand,
+            handler=add_folder_handler.add_folder,
+        )
+
+        remove_folder_handler = RemoveFolderCommandHandler(
+            folder_repo=self.folder_repo
+        )
+        self.command_bus.register(
+            command_type=RemoveFolderCommand,
+            handler=remove_folder_handler.remove_folder,
+        )
+
+        rename_folderset_handler = RenameFolderSetCommandHandler(
+            folder_repo=self.folder_repo
+        )
+        self.command_bus.register(
+            command_type=RenameFolderSetCommand,
+            handler=rename_folderset_handler.rename_folderset,
+        )
+
+        add_folderset_handler = AddFolderSetCommandHandler(
+            folder_repo=self.folder_repo
+        )
+        self.command_bus.register(
+            command_type=AddFolderSetCommand,
+            handler=add_folderset_handler.add_folderset,
+        )
+
+        remove_folderset_handler = RemoveFolderSetCommandHandler(
+            folder_repo=self.folder_repo
+        )
+        self.command_bus.register(
+            command_type=RemoveFolderSetCommand,
+            handler=remove_folderset_handler.remove_folderset,
+        )
+
+    def _assign_timer_command_handlers(self): ...
