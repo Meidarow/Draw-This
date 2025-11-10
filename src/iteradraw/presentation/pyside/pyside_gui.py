@@ -1,19 +1,19 @@
 import sys
 
-from PySide6.QtGui import QStandardItemModel, QStandardItem
 from PySide6.QtWidgets import (
     QApplication,
     QMainWindow,
     QWidget,
     QVBoxLayout,
     QTabWidget,
-    QTreeView,
     QSplitter,
     QPushButton,
     QFormLayout,
     QSpinBox,
     QCheckBox,
 )
+
+from iteradraw.presentation.pyside.widgets import FolderWidget
 
 
 class SlideshowTab(QWidget):
@@ -22,24 +22,15 @@ class SlideshowTab(QWidget):
         layout = QSplitter()  # divider between folder tree and right panel
         layout.setHandleWidth(4)
 
-        # Left: Folder Tree
-        self.tree = QTreeView()
-        self.tree.setHeaderHidden(True)
-        self.model = QStandardItemModel()
-        self.root_item = self.model.invisibleRootItem()
+        self.folderset = FolderWidget(folderset=None)
 
-        # Fill with example data
-        self.populate_tree()
-        self.tree.setModel(self.model)
-
-        # Right: Timer + Start button
         right_panel = QWidget()
         form = QFormLayout(right_panel)
         form.addRow("Timer (seconds):", QSpinBox())
         form.addRow("Shuffle:", QCheckBox())
         form.addRow(QPushButton("Start"))
 
-        layout.addWidget(self.tree)
+        layout.addWidget(self.folderset)
         layout.addWidget(right_panel)
         layout.setStretchFactor(0, 3)
         layout.setStretchFactor(1, 1)
@@ -47,15 +38,22 @@ class SlideshowTab(QWidget):
         main_layout = QVBoxLayout(self)
         main_layout.addWidget(layout)
 
-    def populate_tree(self):
-        """Temporary stub showing folder group + subfolders."""
-        group = QStandardItem("Art Studies")
-        for name in ["Figures", "Portraits", "Landscapes"]:
-            child = QStandardItem(name)
-            child.setCheckable(True)
-            group.appendRow(child)
-        group.setCheckable(True)
-        self.root_item.appendRow(group)
+
+class FolderPanel(QWidget):
+    def __init__(self, /):
+        super().__init__()
+        QVBoxLayout(self)
+        self._create_header()
+        # get folders
+        # iterate over foldersets creating folderwidgets
+
+    def _create_header(self):
+        """
+        Build the header for the folder section of the GUI.
+
+        Includes a button to add more FolderSets and section title.
+        """
+        ...
 
 
 class MainWindow(QMainWindow):
