@@ -1,4 +1,3 @@
-from abc import ABC, abstractmethod
 from typing import (
     Iterable,
     Any,
@@ -28,22 +27,18 @@ Usage:
 """
 
 
-class DatabaseBackend(ABC):
+class ImagePathDatabase(Protocol):
     """Abstract interface for database backends used in Draw-This."""
 
-    @abstractmethod
     def initialize(self) -> None:
         """Establish a connection and prepare for access."""
 
-    @abstractmethod
     def clear_all(self) -> None:
         """Remove all rows from the database (reset state)."""
 
-    @abstractmethod
     def setup_schema(self) -> None:
         """Initialize database schema if not already created."""
 
-    @abstractmethod
     def insert_rows(self, rows: Iterable[tuple]) -> int:
         """
         Insert multiple rows into the database.
@@ -54,7 +49,6 @@ class DatabaseBackend(ABC):
             int: Number of rows successfully inserted.
         """
 
-    @abstractmethod
     def remove_rows(self, paths: Iterable[str]) -> int:
         """
         Remove rows that match given file paths.
@@ -65,7 +59,6 @@ class DatabaseBackend(ABC):
             int: Number of rows removed.
         """
 
-    @abstractmethod
     def mark_seen(self, ids: Iterable[Any], seen: bool = True) -> int:
         """
         Update the 'seen' status of rows.
@@ -77,7 +70,6 @@ class DatabaseBackend(ABC):
             int: Number of rows updated.
         """
 
-    @abstractmethod
     def shuffle(self) -> None:
         """
         Apply randomization strategy (if supported).
@@ -85,7 +77,7 @@ class DatabaseBackend(ABC):
         """
 
 
-class Persistence(Protocol):
+class PreferencesPersistence(Protocol):
     """
     Persistence protocol for domain objects, intended for user-preferences
     and content.
@@ -94,6 +86,12 @@ class Persistence(Protocol):
     hot-swappale backends to properly be consumed by the repository layer.
     """
 
-    def read_file(self): ...
+    def read_file(self):
+        """
+        Decodes file
+        """
 
-    def write_file(self, namespace): ...
+    def write_file(self, namespace):
+        """
+        Encodes file
+        """

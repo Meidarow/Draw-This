@@ -6,26 +6,26 @@ from typing import (
     Any,
 )
 
-from drawthis.core.errors import CommitError
-from drawthis.core.protocols.protocols import DatabaseBackend
+from iteradraw.domain.exceptions import CommitError
+from iteradraw.domain.repositories.interfaces import ImagePathDatabase
 
 """
 This module defines all backends with which the DatabaseManager from Draw-This
 can interface. Each backend must be an override of the abstract class
 'DatabaseBackend' and offer its minimal API.
 
-This module includes one SQLite3Backend, the default databse solution for
-Draw-This.
+This module includes one SQLite3ImagePathBackend, the default databse solution 
+for Iteradraw.
 
 Contains:
-SQLite3Backend
+SQLite3ImagePathBackend
 
 Notes:
 
 """
 
 
-class SQLite3Backend(DatabaseBackend):
+class SQLite3ImagePathDatabase(ImagePathDatabase):
     """
     SQLite3 implementation of the Draw-This database backend.
 

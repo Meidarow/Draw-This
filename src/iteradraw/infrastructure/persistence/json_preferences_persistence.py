@@ -1,3 +1,9 @@
+import json
+from pathlib import Path
+from typing import Optional, Callable
+
+from iteradraw.domain.repositories.interfaces import PreferencePersistence
+
 """
 Persistence layer backend for Draw-This.
 
@@ -5,21 +11,16 @@ This module defines the settings manager and its interface with a JSON file
 used for persistence.
 
 Classes:
-    JsonPersistence: provides safe, atomic read and write API for the JSON
+    JsonPreferencePersistence: provides safe, atomic read and write API for 
+    the JSON
     format.
 
 Usage:
 
 """
 
-import json
-from pathlib import Path
-from typing import Optional, Callable
 
-from iteradraw.domain.repositories.interfaces import Persistence
-
-
-class JsonPersistence(Persistence):
+class JsonPreferencesPersistence(PreferencesPersistence):
     def __init__(
         self,
         namespace: str,
