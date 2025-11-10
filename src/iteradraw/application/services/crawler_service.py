@@ -5,12 +5,12 @@ from typing import (
     Any,
 )
 
-from drawthis.core.models.resources.dataclasses import (
-    ImageRow,
+from iteradraw.domain.models.image import ImageRow
+from iteradraw.infrastructure.filesystem.crawler import Crawler
+from iteradraw.infrastructure.persistence.sqlite3_image_path_database import (
+    SQLite3ImagePathDatabase,
 )
-from drawthis.core.types import PathLike
-from drawthis.persistence.resources.sqlite3_backend import SQLite3Backend
-from drawthis.services.resources.crawler import Crawler
+from iteradraw.shared.types import PathLike
 
 """
 SQLite file lister for Draw-This.
@@ -59,7 +59,7 @@ class FileDiscoveryService:
         backend=None,
         crawler=None,
     ):
-        self.backend = backend or SQLite3Backend(db_path)
+        self.backend = backend or SQLite3ImagePathDatabase(db_path)
         self.crawler_class = crawler or Crawler
         self.batch_size = batch_size or 5000
 
