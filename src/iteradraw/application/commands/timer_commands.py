@@ -1,11 +1,13 @@
 from dataclasses import dataclass
 
+from iteradraw.application.commands.interfaces import Command
+
 
 @dataclass(frozen=True)
-class AddTimerCommand:
+class AddTimerCommand(Command):
     duration: int
 
 
 @dataclass(frozen=True)
-class RemoveTimerCommand:
+class RemoveTimerCommand(Command):
     duration: int
