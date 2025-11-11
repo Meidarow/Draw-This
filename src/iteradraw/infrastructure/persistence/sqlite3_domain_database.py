@@ -16,7 +16,7 @@ This module defines all backends with which the DatabaseManager from Draw-This
 can interface. Each backend must be an override of the abstract class
 'DatabaseBackend' and offer its minimal API.
 
-This module includes one SQLite3ImagePathBackend, the default databse solution 
+This module includes one SQLite3ImagePathBackend, the default databse solution
 for Iteradraw.
 
 Contains:
@@ -119,7 +119,7 @@ class SQLite3DomainDatabase:
             raise ObjectNotFoundError(f"No FolderSet found with name: {name}")
 
         return FolderSet(
-            name=name,
+            uuid=name,
             _folders={
                 row["path"]: Folder(row["path"], row["enabled"])
                 for row in rows

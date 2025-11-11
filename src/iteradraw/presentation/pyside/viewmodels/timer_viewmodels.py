@@ -1,0 +1,6 @@
+class TimerViewModel:
+    ...
+
+
+class PreferencesViewModel:
+    ...

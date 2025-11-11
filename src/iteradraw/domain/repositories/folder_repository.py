@@ -1,3 +1,5 @@
+from uuid import UUID
+
 from iteradraw.domain.models.folder import FolderSet
 from iteradraw.infrastructure.persistence.sqlite3_domain_database import (
     SQLite3DomainDatabase,
@@ -20,11 +22,16 @@ class FolderRepository:
     def __init__(self, persistence: SQLite3DomainDatabase):
         self.persistence = persistence
 
-    def get(self, folderset_name: str) -> FolderSet:
-        return self.persistence.get_folderset(name=folderset_name)
+    def get(self, folderset_id: UUID) -> FolderSet:
+        folderset_id_str = str(folderset_id)
+        return self.persistence.get_folderset(name=folderset_id_str)
 
     def get_all(self) -> list[FolderSet]:
         return self.persistence.get_all_foldersets()
 
     def save(self, folderset: FolderSet):
         self.persistence.save_folderset(folderset=folderset)
+
+    def remove(self, folderset_id: UUID):
+        folderset_id_str = str(folderset_id)
+        self.persistence.delete_folderset(name=folderset_id_str)

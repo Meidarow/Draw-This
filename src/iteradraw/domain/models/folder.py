@@ -1,6 +1,7 @@
 from dataclasses import dataclass, field, replace
 from enum import StrEnum
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
+from uuid import UUID
 
 from iteradraw.shared.types import PathLike
 
@@ -36,8 +37,9 @@ class FolderSet:
     - Folders are always unique (no duplicates), keyed by folder path
     """
 
-    name: str
-    _folders: dict[str, Folder] = field(default_factory=list)
+    uuid: UUID
+    display_name: Optional[str]
+    _folders: dict[str, Folder] = field(default_factory=dict)
 
     class State(StrEnum):
         ENABLED = "enabled"
@@ -63,6 +65,10 @@ class FolderSet:
         new_data = self._folders.copy()
         new_data[path] = replace(new_data[path], enabled=enabled)
         return replace(self, _folders=new_data)
+
+    def rename(self, name: str) -> "FolderSet":
+        """Sets the display_name attribute."""
+        return replace(self, display_name=name)
 
     # Accessors
 

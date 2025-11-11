@@ -1,0 +1,15 @@
+/* * This is your "Hello, World!"
+ * It proves your file is being loaded. #2b2b2b
+ * background-color:qlineargradient(x1: 0, y1: 0, x2: 0.5, y2: 0.5,stop: 0 #FF92BB, stop: 1 white);
+ */
+QTreeView {
+    background-color: #2b2b2b;
+    color: #DDDDDD;
+    font-size: 20px;
+    border: 1px solid #555555;
+}
+/* This targets all your folder group views */
+QTreeView#FolderGroupItem {
+    border: 1px solid #555555;
+    border-radius: 4px; /* Optional: gives it nice rounded corners */
+}
