@@ -1,5 +1,3 @@
-import sys
-
 from PySide6.QtGui import Qt
 from PySide6.QtWidgets import (
     QWidget,
@@ -7,7 +5,7 @@ from PySide6.QtWidgets import (
     QSplitter,
     QMainWindow,
     QTabWidget,
-    QApplication,
+    QFileDialog,
 )
 
 from iteradraw.presentation.pyside.views.folder_views import FolderPanelView
@@ -15,20 +13,41 @@ from iteradraw.presentation.pyside.views.sidebar_views import SidePanelView
 
 
 class MainWindow(QMainWindow):
+    """
+    Top level window of Iteradraw.
+
+    Singular window created by Iteradraw, except dialog windows.
+
+    Core Tabs:
+        - MainTab: Slideshow parameter and start-up tab.
+        - SettingsTab: User preference config window.
+        - Streak (TBD): Tracks user study time/streak.
+
+    Methods:
+        - initialize(): Initial boot-up and data load for the app.
+    """
+
     def __init__(self, command_bus, event_bus):
         super().__init__()
         self.setWindowTitle("Showcase: FolderGroupView")
         self.resize(960, 540)
+        self.file_dialog = QFileDialog()
         tabs = QTabWidget()
-        main_tab = MainTab(command_bus=command_bus, event_bus=event_bus)
+        main_tab = MainTab(
+            command_bus=command_bus,
+            event_bus=event_bus,
+        )
         settings_tab = SettingsTab()
 
-        tabs.addTab(main_tab, "Slideshow")
+        # add tabs in display order
         tabs.addTab(settings_tab, "⚙")
+        tabs.addTab(main_tab, "Slideshow")
+
+        # define focused tab (index starts at 0, default is first added)
+        tabs.setCurrentIndex(1)
         self.setCentralWidget(tabs)
 
-    def initialize(self):
-        ...
+    def initialize(self): ...
 
 
 class MainTab(QWidget):
@@ -51,9 +70,9 @@ class MainTab(QWidget):
     def __init__(self, command_bus, event_bus):
         super().__init__()
         horizontal_splitter = QSplitter(Qt.Orientation.Horizontal)
-
         folder_panel = FolderPanelView(
-            command_bus=command_bus, event_bus=event_bus
+            command_bus=command_bus,
+            event_bus=event_bus,
         )
         sidebar_panel = SidePanelView()
 
@@ -77,10 +96,3 @@ class SettingsTab(QWidget):
     """
 
     ...
-
-
-if __name__ == "__main__":
-    app = QApplication(sys.argv)
-    w = MainWindow()
-    w.show()
-    sys.exit(app.exec())

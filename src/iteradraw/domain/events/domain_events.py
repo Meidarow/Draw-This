@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from uuid import UUID
 
 from iteradraw.domain.events.interfaces import Event
 from iteradraw.domain.models.folder import FolderSet
@@ -6,12 +7,13 @@ from iteradraw.domain.models.folder import FolderSet
 
 @dataclass(frozen=True)
 class FolderAdded(Event):
-    ...
+    folderset_id: UUID
+    folder_path: str
+    enabled: bool
 
 
 @dataclass(frozen=True)
-class FolderRemoved(Event):
-    ...
+class FolderRemoved(Event): ...
 
 
 @dataclass(frozen=True)
@@ -20,30 +22,24 @@ class FolderSetAdded(Event):
 
 
 @dataclass(frozen=True)
-class FolderSetRemoved(Event):
-    ...
+class FolderSetRemoved(Event): ...
 
 
 @dataclass(frozen=True)
-class TimerAdded(Event):
-    ...
+class TimerAdded(Event): ...
 
 
 @dataclass(frozen=True)
-class TimerRemoved(Event):
-    ...
+class TimerRemoved(Event): ...
 
 
 @dataclass(frozen=True)
-class SessionVerified(Event):
-    ...
+class SessionVerified(Event): ...
 
 
 @dataclass(frozen=True)
-class SessionStarted(Event):
-    ...
+class SessionStarted(Event): ...
 
 
 @dataclass(frozen=True)
-class SessionFailed(Event):
-    ...
+class SessionFailed(Event): ...

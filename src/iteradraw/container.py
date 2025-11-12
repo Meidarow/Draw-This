@@ -23,7 +23,7 @@ from iteradraw.infrastructure.persistence.sqlite3_domain_database import (
 )
 
 
-class Container:
+class DependencyContainer:
     # TODO if methods stay small -> unify them in build
     def __init__(self):
         self.container = None
