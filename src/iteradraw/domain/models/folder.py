@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field, replace
 from enum import StrEnum
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 from uuid import UUID
 
 from iteradraw.shared.types import PathLike
@@ -38,8 +38,8 @@ class FolderSet:
     """
 
     uuid: UUID
-    display_name: Optional[str]
-    _folders: dict[str, Folder] = field(default_factory=dict)
+    display_name: str
+    folders: dict[str, Folder] = field(default_factory=dict)
 
     class State(StrEnum):
         ENABLED = "enabled"
@@ -48,23 +48,32 @@ class FolderSet:
 
     def add(self, path: str, enabled: bool = True) -> "FolderSet":
         """Add a folder with optional enabled state."""
-        if self._folders[path]:
+        if path in self.folders:
             return self
-        new_data = self._folders.copy()
+        new_data = self.folders.copy()
         new_data[path] = Folder(path=path, enabled=enabled)
-        return replace(self, _folders=new_data)
+        return replace(self, folders=new_data)
 
     def remove(self, path: str) -> "FolderSet":
         """Remove a folder."""
-        new_data = self._folders.copy()
+        new_data = self.folders.copy()
         new_data.pop(path)
-        return replace(self, _folders=new_data)
+        return replace(self, folders=new_data)
 
     def set_folder_enabled(self, path: str, enabled: bool) -> "FolderSet":
         """Enable a folder explicitly."""
-        new_data = self._folders.copy()
+        new_data = self.folders.copy()
         new_data[path] = replace(new_data[path], enabled=enabled)
-        return replace(self, _folders=new_data)
+        return replace(self, folders=new_data)
+
+    def set_all_folders_enabled(self, enabled: bool) -> "FolderSet":
+        """Enable a folder explicitly."""
+        new_data = self.folders.copy()
+        for folder in self.folders.values():
+            new_data[folder.path] = replace(
+                new_data[folder.path], enabled=enabled
+            )
+        return replace(self, folders=new_data)
 
     def rename(self, name: str) -> "FolderSet":
         """Sets the display_name attribute."""
@@ -75,31 +84,31 @@ class FolderSet:
     @property
     def all(self) -> list[Folder]:
         """Return all folders."""
-        return list(self._folders.values())
+        return list(self.folders.values())
 
     @property
     def enabled(self) -> list[Folder]:
         """Return only enabled folders."""
-        return [folder for folder in self._folders.values() if folder.enabled]
+        return [folder for folder in self.folders.values() if folder.enabled]
 
     @property
     def disabled(self) -> list[Folder]:
         """Return only disabled folders."""
         return [
-            folder for folder in self._folders.values() if not folder.enabled
+            folder for folder in self.folders.values() if not folder.enabled
         ]
 
     @property
     def state(self) -> "FolderSet.State":
         """Return enabled status for FolderSet"""
-        if not self._folders:
+        if not self.folders:
             return FolderSet.State.DISABLED
 
         enabled_count = sum(
-            1 for item in self._folders.values() if item.enabled
+            1 for item in self.folders.values() if item.enabled
         )
 
-        if enabled_count == len(self._folders):
+        if enabled_count == len(self.folders):
             return FolderSet.State.ENABLED
         elif enabled_count == 0:
             return FolderSet.State.DISABLED

@@ -9,11 +9,21 @@ from iteradraw.application.commands.folder_commands import (
     AddFolderCommand,
     RemoveFolderCommand,
     RenameFolderSetCommand,
+    AddFolderSetCommand,
+    SetFolderEnabledCommand,
+    SetAllFoldersEnabledCommand,
+    MoveFolderBetweenFolderSetsCommand,
+    DeleteFolderSetCommand,
 )
 from iteradraw.application.handlers.folder_handlers import (
     AddFolderCommandHandler,
     RemoveFolderCommandHandler,
     RenameFolderSetCommandHandler,
+    AddFolderSetCommandHandler,
+    SetFolderEnabledCommandHandler,
+    SetAllFoldersEnabledCommandHandler,
+    MoveFolderBetweenFolderSetsCommandHandler,
+    DeleteFolderSetCommandHandler,
 )
 from iteradraw.domain.repositories.folder_repository import FolderRepository
 from iteradraw.infrastructure.buses.command_bus import CommandBus
@@ -21,14 +31,15 @@ from iteradraw.infrastructure.buses.event_bus import EventBus
 from iteradraw.infrastructure.persistence.sqlite3_domain_database import (
     SQLite3DomainDatabase,
 )
+from iteradraw.infrastructure.services import UUIDGenerator
 
 
 class DependencyContainer:
-    # TODO if methods stay small -> unify them in build
     def __init__(self):
         self.container = None
 
     def build(self):
+        # TODO if methods stay small -> unify them in build
         self._build_container()
         self._install_modules()
 
@@ -64,7 +75,7 @@ class CommandAssignment:
         )
         self.command_bus.register(
             command_type=AddFolderCommand,
-            handler=add_folder_handler.add_folder,
+            handler=add_folder_handler.handle,
         )
 
         remove_folder_handler = RemoveFolderCommandHandler(
@@ -72,7 +83,7 @@ class CommandAssignment:
         )
         self.command_bus.register(
             command_type=RemoveFolderCommand,
-            handler=remove_folder_handler.remove_folder,
+            handler=remove_folder_handler.handle,
         )
 
         rename_folderset_handler = RenameFolderSetCommandHandler(
@@ -80,23 +91,52 @@ class CommandAssignment:
         )
         self.command_bus.register(
             command_type=RenameFolderSetCommand,
-            handler=rename_folderset_handler.rename_folderset,
+            handler=rename_folderset_handler.handle,
         )
 
         add_folderset_handler = AddFolderSetCommandHandler(
-            folder_repo=self.folder_repo, event_bus=self.event_bus
+            folder_repo=self.folder_repo,
+            event_bus=self.event_bus,
+            id_generator=UUIDGenerator(),
         )
         self.command_bus.register(
             command_type=AddFolderSetCommand,
-            handler=add_folderset_handler.add_folderset,
+            handler=add_folderset_handler.handle,
         )
 
-        remove_folderset_handler = RemoveFolderSetCommandHandler(
+        delete_folderset_handler = DeleteFolderSetCommandHandler(
             folder_repo=self.folder_repo, event_bus=self.event_bus
         )
         self.command_bus.register(
-            command_type=RemoveFolderSetCommand,
-            handler=remove_folderset_handler.remove_folderset,
+            command_type=DeleteFolderSetCommand,
+            handler=delete_folderset_handler.handle,
         )
 
-    def _assign_timer_command_handlers(self): ...
+        set_folder_enabled_handler = SetFolderEnabledCommandHandler(
+            folder_repo=self.folder_repo, event_bus=self.event_bus
+        )
+        self.command_bus.register(
+            command_type=SetFolderEnabledCommand,
+            handler=set_folder_enabled_handler.handle,
+        )
+
+        set_all_folders_enabled_handler = SetAllFoldersEnabledCommandHandler(
+            folder_repo=self.folder_repo, event_bus=self.event_bus
+        )
+        self.command_bus.register(
+            command_type=SetAllFoldersEnabledCommand,
+            handler=set_all_folders_enabled_handler.handle,
+        )
+
+        move_folder_between_foldersets_handler = (
+            MoveFolderBetweenFolderSetsCommandHandler(
+                folder_repo=self.folder_repo, event_bus=self.event_bus
+            )
+        )
+        self.command_bus.register(
+            command_type=MoveFolderBetweenFolderSetsCommand,
+            handler=move_folder_between_foldersets_handler.handle,
+        )
+
+    def _assign_timer_command_handlers(self):
+        ...

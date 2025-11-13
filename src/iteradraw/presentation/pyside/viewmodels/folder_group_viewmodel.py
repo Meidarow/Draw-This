@@ -43,6 +43,7 @@ class FolderGroupViewModel(QStandardItemModel):
         for f in folderset.all:
             item = self._build_and_configure_item(f.path, f.enabled)
             group.appendRow(item)
+        group.setCheckState(self._calculate_state_for_parent(parent=group))
         self.itemChanged.connect(self.on_checkbox_changed)
 
     def bind_signals(self) -> None:

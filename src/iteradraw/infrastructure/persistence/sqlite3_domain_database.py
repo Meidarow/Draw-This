@@ -1,4 +1,5 @@
 import sqlite3
+import uuid
 from typing import (
     Optional,
     Any,
@@ -44,14 +45,14 @@ class SQLite3DomainDatabase:
 
     DB_SCHEMA = """
     CREATE TABLE IF NOT EXISTS foldersets (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        name TEXT UNIQUE NOT NULL
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL
     );
     CREATE TABLE IF NOT EXISTS folders (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         path TEXT UNIQUE NOT NULL,
         enabled BOOLEAN DEFAULT 1,
-        folderset_id INTEGER NOT NULL,
+        folderset_id TEXT NOT NULL,
         FOREIGN KEY(folderset_id) REFERENCES foldersets(id)
             ON DELETE CASCADE
     );
@@ -101,28 +102,30 @@ class SQLite3DomainDatabase:
         with self.database:
             self.database.executescript(query)
 
-    def get_folderset(self, name: str) -> FolderSet:
+    def get_folderset(self, folderset_id: str) -> FolderSet:
         """
         Retrieves one FolderSet from the DB and reconstructs the aggregate.
         """
-        rows = self._execute(
-            """
-            SELECT f.path, f.enabled
-            FROM folders f
-            JOIN foldersets fs ON f.folderset_id = fs.id
-            WHERE fs.name = ?
-            """,
-            (name,),
+        fs_row = self._execute(
+            "SELECT name FROM foldersets WHERE id = ?", (folderset_id,)
+        ).fetchone()
+
+        if not fs_row:
+            raise ObjectNotFoundError(
+                f"No FolderSet found with UUID: {folderset_id}"
+            )
+        folder_rows = self._execute(
+            "SELECT path, enabled FROM folders WHERE folderset_id = ?",
+            (folderset_id,),
         ).fetchall()
 
-        if not rows:
-            raise ObjectNotFoundError(f"No FolderSet found with name: {name}")
-
+        # noinspection PyArgumentList
         return FolderSet(
-            uuid=name,
-            _folders={
+            uuid=uuid.UUID(folderset_id),
+            display_name=fs_row["name"],
+            folders={
                 row["path"]: Folder(row["path"], row["enabled"])
-                for row in rows
+                for row in folder_rows
             },
         )
 
@@ -134,15 +137,16 @@ class SQLite3DomainDatabase:
         # 1. Get ALL data in one go
         query = """
         SELECT
+            fs.id,
             fs.name,
             f.path,
             f.enabled
         FROM
             foldersets fs
-        JOIN
+        LEFT JOIN
             folders f ON f.folderset_id = fs.id
         ORDER BY
-            fs.name;
+            fs.id;
         """
 
         # This holds the in-progress foldersets: { "name": { "path": folder } }
@@ -151,21 +155,30 @@ class SQLite3DomainDatabase:
         # 2. Loop through the flat results
         # (Assuming your _execute.fetchall() returns dict-like rows)
         for row in self._execute(query).fetchall():
-            name = row["name"]
+            folderset_id = row["id"]
+            folderset_name = row["name"]
 
             # 3. Create the FolderSet if it's the first time we've seen it
-            if name not in foldersets_map:
-                foldersets_map[name] = {}
+            if folderset_id not in foldersets_map:
+                foldersets_map[folderset_id] = {
+                    "name": folderset_name,
+                    "folders": {},
+                }
 
             # 4. Add the folder to its set
-            foldersets_map[name][row["path"]] = Folder(
-                path=row["path"], enabled=row["enabled"]
-            )
+            if row["path"]:
+                foldersets_map[folderset_id]["folders"][row["path"]] = Folder(
+                    path=row["path"], enabled=row["enabled"]
+                )
 
-        # 5. Convert the map into the final list of objects
+        # noinspection PyArgumentList
         return [
-            FolderSet(name=name, _folders=folders)
-            for name, folders in foldersets_map.items()
+            FolderSet(
+                uuid=uuid.UUID(folderset_id),
+                display_name=data["name"],
+                folders=data["folders"],
+            )
+            for folderset_id, data in foldersets_map.items()
         ]
 
     def save_folderset(self, folderset: FolderSet):
@@ -173,15 +186,14 @@ class SQLite3DomainDatabase:
         Saves a FolderSet aggregate to the DB in a transaction.
         """
         try:
-            with self.database:  # This automatically BEGINs a transaction
-                # Upsert the parent folderset
+            with self.database:
                 cursor = self._execute(
                     """
-                    INSERT INTO foldersets (name) VALUES (?)
-                    ON CONFLICT(name) DO UPDATE SET name=excluded.name
+                    INSERT INTO foldersets (id, name) VALUES (?, ?)
+                    ON CONFLICT(id) DO UPDATE SET name=excluded.name
                     RETURNING id
                     """,
-                    (folderset.name,),
+                    (folderset.uuid, folderset.display_name),
                 )
                 folderset_id = cursor.fetchone()["id"]
 
@@ -206,6 +218,16 @@ class SQLite3DomainDatabase:
         except sqlite3.DatabaseError as e:
             raise PersistenceError("Failed to save folderset") from e
 
+    def delete_folderset(self, folderset_id):
+        try:
+            with self.database:
+                self._execute(
+                    "DELETE FROM foldersets WHERE id = ?",
+                    (folderset_id,),
+                )
+        except sqlite3.DatabaseError as e:
+            raise PersistenceError("Failed to delete folderset") from e
+
     def commit(self) -> None:
         """Explicitly commit any pending transaction."""
         try:
@@ -221,6 +243,6 @@ class SQLite3DomainDatabase:
         self.database.execute("PRAGMA temp_store = MEMORY;")
         self.database.execute("PRAGMA foreign_keys = ON;")
 
-    def _execute(self, query: str, *params: Any) -> sqlite3.Cursor:
+    def _execute(self, query: str, params: Any = ()) -> sqlite3.Cursor:
         """Run a single statement with optional parameters."""
         return self.database.execute(query, params)

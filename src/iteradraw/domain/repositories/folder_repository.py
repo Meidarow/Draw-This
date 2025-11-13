@@ -24,7 +24,7 @@ class FolderRepository:
 
     def get(self, folderset_id: UUID) -> FolderSet:
         folderset_id_str = str(folderset_id)
-        return self.persistence.get_folderset(name=folderset_id_str)
+        return self.persistence.get_folderset(folderset_id=folderset_id_str)
 
     def get_all(self) -> list[FolderSet]:
         return self.persistence.get_all_foldersets()
@@ -34,4 +34,4 @@ class FolderRepository:
 
     def remove(self, folderset_id: UUID):
         folderset_id_str = str(folderset_id)
-        self.persistence.delete_folderset(name=folderset_id_str)
+        self.persistence.delete_folderset(folderset_id=folderset_id_str)

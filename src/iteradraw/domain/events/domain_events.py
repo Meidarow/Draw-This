@@ -28,9 +28,30 @@ class FolderSetRemoved(Event):
     folderset_id: UUID
 
 
+@dataclass(frozen=True)
 class FolderSetRenamed(Event):
     folderset_id: UUID
     new_name: str
+
+
+@dataclass(frozen=True)
+class FolderEnabledSet(Event):
+    folderset_id: UUID
+    folder_path: str
+    enabled: bool
+
+
+@dataclass(frozen=True)
+class AllFoldersEnabledSet(Event):
+    folderset_id: UUID
+    enabled: bool
+
+
+@dataclass(frozen=True)
+class FolderMovedBetweenFolderSets(Event):
+    origin_folderset_id: UUID
+    destination_folderset_id: UUID
+    folder_path: str
 
 
 @dataclass(frozen=True)

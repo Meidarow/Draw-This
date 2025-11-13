@@ -28,7 +28,7 @@ def get_mock_folderset(
     real_path = "/mnt/Storage/Art/Resources/Animals/ANM-0001.jpg"  # to test
     # open folder
     folders[real_path] = Folder(path=real_path, enabled=True)
-    return FolderSet(uuid=folderset_id, display_name=name, _folders=folders)
+    return FolderSet(uuid=folderset_id, display_name=name, folders=folders)
 
 
 def main():

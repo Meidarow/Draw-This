@@ -1,14 +1,15 @@
-from typing import Optional
-
+from PySide6.QtCore import QSize, QPoint
 from PySide6.QtGui import QAction, Qt
 from PySide6.QtWidgets import (
-    QWidget,
     QTreeView,
     QVBoxLayout,
     QMenu,
     QFrame,
     QStackedWidget,
     QLabel,
+    QScrollArea,
+    QSizePolicy,
+    QAbstractScrollArea,
 )
 
 from iteradraw.application.commands.folder_commands import AddFolderSetCommand
@@ -64,7 +65,12 @@ class FolderPanelView(QStackedWidget):
             self.layout = QVBoxLayout()
             self.content = QFrame()
             self.content.setLayout(self.layout)
-            self._parent.addWidget(self.content)
+            self.layout.setAlignment(Qt.AlignmentFlag.AlignTop)
+            self.scroll_area = QScrollArea()
+            self.scroll_area.setWidget(self.content)
+            self.scroll_area.setWidgetResizable(True)
+
+            self._parent.addWidget(self.scroll_area)
 
     def __init__(self, command_bus, event_bus):
         super().__init__()
@@ -179,7 +185,7 @@ class FolderPanelView(QStackedWidget):
             self.setCurrentIndex(1)
 
 
-class FolderGroupView(QWidget):
+class FolderGroupView(QTreeView):
     """
     Widget for single FolderSet's folder group.
     A tree with checkboxes, triple state for the tree-root and double state
@@ -210,51 +216,48 @@ class FolderGroupView(QWidget):
 
         def __init__(self, parent):
             self._parent = parent
-            self.tree: Optional[QTreeView] = None
 
         def build(self):
-            self._create_widget()
             self._configure_tree()
-            self._install_layout()
-
-        def _create_widget(self):
-            self.tree = QTreeView()
 
         def _configure_tree(self):
-            self.tree.setModel(self._parent.model)
-            self.tree.setObjectName("FolderGroupItem")
-            self.tree.setContextMenuPolicy(
+            self._parent.setModel(self._parent.model)
+            self._parent.setObjectName("FolderGroupItem")
+            self._parent.setContextMenuPolicy(
                 Qt.ContextMenuPolicy.CustomContextMenu
             )
-            self.tree.setHeaderHidden(True)
+            self._parent.setHeaderHidden(True)
             # Enable Drag/Drop behavior
-            self.tree.setAcceptDrops(True)
-            self.tree.setDragEnabled(True)
-
-        def _install_layout(self):
-            main_layout = QVBoxLayout(self._parent)
-            main_layout.addWidget(self.tree)
+            self._parent.setAcceptDrops(True)
+            self._parent.setDragEnabled(True)
+            self._parent.setVerticalScrollBarPolicy(
+                Qt.ScrollBarPolicy.ScrollBarAlwaysOff
+            )
+            policy = self._parent.sizePolicy()
+            policy.setVerticalPolicy(QSizePolicy.Policy.Minimum)
+            self._parent.setSizePolicy(policy)
+            self._parent.setSizeAdjustPolicy(
+                QAbstractScrollArea.SizeAdjustPolicy.AdjustToContents
+            )
 
     def __init__(self):
         super().__init__()
         self.model = None
-        self.tree = None
         self._ui = self._UiBuilder(self)
 
     # noinspection PyUnresolvedReferences
     def assign_viewmodel_and_build(self, viewmodel: FolderGroupViewModel):
         self.model = viewmodel
         self._ui.build()
-        self.tree = self._ui.tree
-        self.tree.customContextMenuRequested.connect(
-            self.on_context_menu_requested
-        )
+        self.customContextMenuRequested.connect(self.on_context_menu_requested)
+        self.expanded.connect(self._on_tree_changed)
+        self.collapsed.connect(self._on_tree_changed)
 
     def on_context_menu_requested(self, position):
         """
         Builds and shows the correct context menu on the fly.
         """
-        index = self.tree.indexAt(position)
+        index = self.indexAt(position)
         menu = QMenu()  # Create a new, fresh menu
 
         # Case 1: Clicked on group or empty space
@@ -292,7 +295,7 @@ class FolderGroupView(QWidget):
                 lambda: self.model.on_open_folder_from_group(item),
             )
 
-        menu.exec(self.tree.viewport().mapToGlobal(position))
+        menu.exec(self.viewport().mapToGlobal(position))
 
     @staticmethod
     def _add_action(menu: QMenu, text: str, slot):
@@ -302,3 +305,47 @@ class FolderGroupView(QWidget):
         action = QAction(text, menu)
         action.triggered.connect(slot)
         menu.addAction(action)
+
+    def _on_tree_changed(self):
+        """Called when tree expands/collapses - trigger resize"""
+        self.updateGeometry()  # Tells parent layout to recalculate
+
+    def on_expansion_changed(self, index):
+        """
+        Forces the parent layout to re-calculate our size.
+        """
+        self.updateGeometry()
+
+    def minimumSizeHint(self) -> QSize:
+        """
+        Our minimum size is *just* the root item.
+        This kills the "weird box".
+        """
+        if not self.model:
+            return super().minimumSizeHint()
+
+        # Get height of the root item (row 0)
+        root_index = self.model().index(0, 0)
+        height = self.rowHeight(root_index)
+
+        # Add 2px for any borders/padding
+        return QSize(super().minimumSizeHint().width(), height + 2)
+
+    def sizeHint(self) -> QSize:
+        """
+        Our "ideal" size is the height of *all* visible items.
+        This is the "banger" version of Claude's "iffy" logic.
+        """
+        if not self.model:
+            return super().sizeHint()
+
+        height = 0
+
+        # This is the "god-tier" way to get *only* visible rows
+        index = self.indexAt(QPoint(0, 0))  # Start at top-left
+        while index.isValid():
+            height += self.rowHeight(index)
+            index = self.indexBelow(index)  # Get next *visible* item
+
+        # Add 2px for any borders/padding
+        return QSize(super().sizeHint().width(), height + 2)
