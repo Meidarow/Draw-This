@@ -5,7 +5,7 @@ from uuid import UUID
 from PySide6.QtWidgets import QApplication, QMainWindow
 
 from iteradraw.domain.models.folder import Folder, FolderSet
-from iteradraw.presentation.pyside.viewmodels.folder_viewmodels import (
+from iteradraw.presentation.pyside.viewmodels.folder_group_viewmodel import (
     FolderGroupViewModel,
 )
 from iteradraw.presentation.pyside.views.folder_views import FolderGroupView
@@ -25,6 +25,9 @@ def get_mock_folderset(
     for i in range(num_folders):
         path = f"/path/to/folder_{i}"
         folders[path] = Folder(path=path, enabled=(i % 2 == 0))
+    real_path = "/mnt/Storage/Art/Resources/Animals/ANM-0001.jpg"  # to test
+    # open folder
+    folders[real_path] = Folder(path=real_path, enabled=True)
     return FolderSet(uuid=folderset_id, display_name=name, _folders=folders)
 
 

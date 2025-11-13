@@ -13,7 +13,7 @@ from PySide6.QtWidgets import (
 from iteradraw.application.commands.folder_commands import AddFolderSetCommand
 from iteradraw.domain.events.domain_events import FolderSetAdded
 from iteradraw.domain.models.folder import FolderSet
-from iteradraw.presentation.pyside.viewmodels.folder_viewmodels import (
+from iteradraw.presentation.pyside.viewmodels.folder_group_viewmodel import (
     FolderGroupViewModel,
 )
 
@@ -28,25 +28,32 @@ class FolderPanelView(QGroupBox):
 
     """
 
+    class Actions(StrEnum):
+        ADD_FOLDERSET = "add_folderset"
+
     class _UiBuilder:
         def __init__(self, parent):
             self._parent = parent
 
         def build(self):
             self._configure_widget()
-            self._create_header()
+            self._build_placeholder()
+            self._build_content()
             self._install_layout()
 
         def _configure_widget(self):
             self._parent.setObjectName("FolderGroupBox")
 
-        def _create_header(self):
+        def _build_placeholder(self):
             """
             Build the header for the folder section of the GUI.
 
             Includes a button to add more FolderSets and section title.
             """
             ...
+
+        def _build_content(self):
+            """"""
 
         def _install_layout(self):
             self.layout = QVBoxLayout()
@@ -70,9 +77,12 @@ class FolderPanelView(QGroupBox):
         self.command_bus.dispatch(cmd)
 
     def add_folder_group(self, folderset: FolderSet):
-        vm = FolderGroupViewModel(self.command_bus, self.event_bus)
+        folder_group = FolderGroupView()
+        vm = FolderGroupViewModel(
+            self.command_bus, self.event_bus, folder_group
+        )
+        folder_group.assign_viewmodel_and_build(vm)
         vm.populate(folderset)
-        folder_group = FolderGroupView(vm)
         self.layout().addWidget(folder_group)
 
     def remove_folder_group(self): ...
@@ -156,16 +166,19 @@ class FolderGroupView(QWidget):
                 QAction("Rename group")
             )
 
-    def __init__(self, viewmodel: FolderGroupViewModel):
+    def __init__(self):
         super().__init__()
-        self.model = viewmodel
+        self.model = None
         self.action = {}
         self._ui = self._UiBuilder(self)
-        self._ui.build()
         self.tree = self._ui.tree
         self.tree.customContextMenuRequested.connect(
             self._on_context_menu_requested
         )
+
+    def assign_viewmodel_and_build(self, viewmodel: FolderGroupViewModel):
+        self.model = viewmodel
+        self._ui.build()
 
     def _on_context_menu_requested(self, position):
         """
