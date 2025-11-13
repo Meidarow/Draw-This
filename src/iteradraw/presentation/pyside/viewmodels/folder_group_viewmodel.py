@@ -14,7 +14,11 @@ from iteradraw.application.commands.folder_commands import (
     DeleteFolderSetCommand,
     RenameFolderSetCommand,
 )
-from iteradraw.domain.events.domain_events import FolderAdded
+from iteradraw.domain.events.domain_events import (
+    FolderAdded,
+    FolderRemoved,
+    FolderSetRenamed,
+)
 
 """
 Viewmodel for the FolderGroupView GUI component.
@@ -24,6 +28,7 @@ Viewmodel for the FolderGroupView GUI component.
 class FolderGroupViewModel(QStandardItemModel):
     def __init__(self, command_bus, event_bus, parent):
         super().__init__(parent)
+        self.view = parent
         self.command_bus = command_bus
         self.event_bus = event_bus
         self.is_handling_change = False
@@ -43,13 +48,13 @@ class FolderGroupViewModel(QStandardItemModel):
     def bind_signals(self) -> None:
         self.itemChanged.connect(self.on_checkbox_changed)
 
-    # =============================================================================
+    # =========================================================================
     # Signal Slots
     #    Slots for signals emmited in the GUI
     #
     # Naming convention:
     #    on_"command"() -> command describes GUI action
-    # =============================================================================
+    # =========================================================================
 
     def on_add_folder_to_group(self) -> None:
         """ """
@@ -60,6 +65,7 @@ class FolderGroupViewModel(QStandardItemModel):
         if folder_path:
             self.add_folder_to_folderset(folderset_id, folder_path)
 
+    # noinspection PyMethodMayBeStatic
     def on_open_folder_from_group(self, item) -> None:
         QDesktopServices.openUrl(item.text())
 
@@ -77,7 +83,7 @@ class FolderGroupViewModel(QStandardItemModel):
         parent_item = self.invisibleRootItem().child(0)
         index = parent_item.index()
         folderset_id = self.data(index, Qt.ItemDataRole.UserRole)
-        name, ok = QInputDialog().getText(self.parent(), "New name:", "")
+        name, ok = QInputDialog().getText(self.view, "New name:", "")
         if name and ok:
             self.rename_folderset(folderset_id, name)
 
@@ -125,35 +131,45 @@ class FolderGroupViewModel(QStandardItemModel):
         finally:
             self.is_handling_change = False
 
-    # =============================================================================
+    # =========================================================================
     # Event Slots:
     #    Slots for events isued on the event_bus
     #
     # Naming convention:
     #    on_"event_happened"() -> event describes past happening
-    # =============================================================================
+    # =========================================================================
 
-    def on_folder_added_to_group(self, event: FolderAdded) -> None:
+    def on_folder_added_to_folderset(self, event: FolderAdded) -> None:
         parent_item = self.invisibleRootItem().child(0)
         parent_item.appendRow(
             self._build_and_configure_item(event.folder_path, event.enabled)
         )
 
-    def on_folder_added_to_folderset(self): ...
+    def on_folder_removed_from_folderset(self, event: FolderRemoved):
+        parent_item = self.invisibleRootItem().child(0)
+        for child_row in range(parent_item.rowCount()):
+            child_item = parent_item.child(child_row)
+            if not child_item.text() == event.folder_path:
+                continue
+            parent_item.removeRow(child_row)
+            return
 
-    def on_olderset_renamed(self): ...
+    def on_folderset_renamed(self, event: FolderSetRenamed):
+        parent_item = self.invisibleRootItem().child(0)
+        parent_item.setText(event.new_name)
 
-    def on_olderset_deleted(self): ...
+    """
+    on_folderset_deleted:
+        Folder group removal is handled by FolderPanelView
+    """
 
-    def on_folder_removed_from_folderset(self): ...
-
-    # =============================================================================
+    # =========================================================================
     # Command Dispatchers:
     #    Methods that issue commands on the command bus.
     #
     # Naming convention:
     #    "action"() -> action describes application layer command
-    # =============================================================================
+    # =========================================================================
 
     def add_folder_to_folderset(self, folderset_id, folder_path) -> None:
         cmd = AddFolderCommand(
@@ -185,29 +201,27 @@ class FolderGroupViewModel(QStandardItemModel):
         self.command_bus.dispatch(cmd)
 
     def rename_folderset(self, folderset_id, name) -> None:
-        cmd = RenameFolderSetCommand(
-            folderset_id=folderset_id, new_folderset_name=name
-        )
+        cmd = RenameFolderSetCommand(folderset_id=folderset_id, new_name=name)
         self.command_bus.dispatch(cmd)
 
     def delete_folderset(self, folderset_id) -> None:
         cmd = DeleteFolderSetCommand(folderset_id=folderset_id)
         self.command_bus.dispatch(cmd)
 
-    # =============================================================================
+    # =========================================================================
     # Private Helpers
-    # =============================================================================
+    # =========================================================================
 
+    @staticmethod
     def _set_state_for_all_children(
-        self, parent_item: QStandardItem, check_state: Qt.CheckState
+        parent_item: QStandardItem, check_state: Qt.CheckState
     ) -> None:
         for child_row in range(parent_item.rowCount()):
             child = parent_item.child(child_row)
             child.setCheckState(check_state)
 
-    def _calculate_state_for_parent(
-        self, parent: QStandardItem
-    ) -> Qt.CheckState:
+    @staticmethod
+    def _calculate_state_for_parent(parent: QStandardItem) -> Qt.CheckState:
         checked_count = 0
         total_children = parent.rowCount()
 
@@ -258,7 +272,7 @@ class FolderGroupViewModel(QStandardItemModel):
         from PySide6.QtWidgets import QMessageBox  # Keep import local
 
         reply = QMessageBox.question(
-            self.parent(),
+            self.view,
             "Confirm Delete",
             message,
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,

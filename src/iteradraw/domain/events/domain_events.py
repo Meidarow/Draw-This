@@ -13,7 +13,9 @@ class FolderAdded(Event):
 
 
 @dataclass(frozen=True)
-class FolderRemoved(Event): ...
+class FolderRemoved(Event):
+    folderset_id: UUID
+    folder_path: str
 
 
 @dataclass(frozen=True)
@@ -22,24 +24,35 @@ class FolderSetAdded(Event):
 
 
 @dataclass(frozen=True)
-class FolderSetRemoved(Event): ...
+class FolderSetRemoved(Event):
+    folderset_id: UUID
+
+
+class FolderSetRenamed(Event):
+    folderset_id: UUID
+    new_name: str
 
 
 @dataclass(frozen=True)
-class TimerAdded(Event): ...
+class TimerAdded(Event):
+    ...
 
 
 @dataclass(frozen=True)
-class TimerRemoved(Event): ...
+class TimerRemoved(Event):
+    ...
 
 
 @dataclass(frozen=True)
-class SessionVerified(Event): ...
+class SessionVerified(Event):
+    ...
 
 
 @dataclass(frozen=True)
-class SessionStarted(Event): ...
+class SessionStarted(Event):
+    ...
 
 
 @dataclass(frozen=True)
-class SessionFailed(Event): ...
+class SessionFailed(Event):
+    ...

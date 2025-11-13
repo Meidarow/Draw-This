@@ -1,5 +1,4 @@
 from dataclasses import dataclass
-from typing import Optional
 from uuid import UUID
 
 from iteradraw.application.commands.interfaces import Command
@@ -25,12 +24,12 @@ class RemoveFolderCommand(Command):
 @dataclass(frozen=True)
 class RenameFolderSetCommand(Command):
     folderset_id: UUID
-    new_folderset_name: str
+    new_name: str
 
 
 @dataclass(frozen=True)
 class AddFolderSetCommand(Command):
-    display_name: Optional[str]
+    display_name: str
 
 
 @dataclass(frozen=True)

@@ -7,11 +7,15 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QMenu,
     QFrame,
-    QGroupBox,
+    QStackedWidget,
+    QLabel,
 )
 
 from iteradraw.application.commands.folder_commands import AddFolderSetCommand
-from iteradraw.domain.events.domain_events import FolderSetAdded
+from iteradraw.domain.events.domain_events import (
+    FolderSetAdded,
+    FolderSetRemoved,
+)
 from iteradraw.domain.models.folder import FolderSet
 from iteradraw.presentation.pyside.viewmodels.folder_group_viewmodel import (
     FolderGroupViewModel,
@@ -22,39 +26,45 @@ Custom PySide QtGui views for the folder panel of the main tab.
 """
 
 
-class FolderPanelView(QGroupBox):
+class FolderPanelView(QStackedWidget):
     """
         Aggregate view of FolderGroupViews.
     QStackedWidget
     """
 
     class _UiBuilder:
-        def __init__(self, parent):
+        def __init__(self, parent: QStackedWidget):
             self._parent = parent
 
-        def build(self):
+        def build(self) -> None:
             self._configure_widget()
-            self._build_placeholder()
-            self._build_content()
-            self._install_layout()
+            self._build_placeholder()  # Inserts placeholder at index 0
+            self._build_content()  # Inserts content at index 1
 
-        def _configure_widget(self):
+        def _configure_widget(self) -> None:
             self._parent.setObjectName("FolderGroupBox")
+            self._parent.setContextMenuPolicy(
+                Qt.ContextMenuPolicy.CustomContextMenu
+            )
 
-        def _build_placeholder(self):
+        def _build_placeholder(self) -> None:
             """
             Build the header for the folder section of the GUI.
-
             Includes a button to add more FolderSets and section title.
             """
-            self.placeholder = QFrame()
+            self.placeholder = QLabel()
+            self.placeholder.setText("Right-click to add folders!")
+            self.placeholder.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            self.placeholder.setContextMenuPolicy(
+                Qt.ContextMenuPolicy.NoContextMenu
+            )
+            self._parent.addWidget(self.placeholder)
 
-        def _build_content(self):
-            """"""
-
-        def _install_layout(self):
+        def _build_content(self) -> None:
             self.layout = QVBoxLayout()
-            self._parent.setLayout(self.layout)
+            self.content = QFrame()
+            self.content.setLayout(self.layout)
+            self._parent.addWidget(self.content)
 
     def __init__(self, command_bus, event_bus):
         super().__init__()
@@ -62,44 +72,77 @@ class FolderPanelView(QGroupBox):
         self.event_bus = event_bus
         self._ui = self._UiBuilder(self)
         self._ui.build()
-        self.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.content = self._ui.content.layout()
         self._bind_signals()
 
-    def _bind_signals(self):
+    def _bind_signals(self) -> None:
         self.customContextMenuRequested.connect(self.on_context_menu_requested)
-
         self.event_bus.subscribe(
             FolderSetAdded,
-            lambda event: self.add_folder_group(event.folderset),
+            lambda event: self.on_folderset_added(event.folderset),
+        )
+        self.event_bus.subscribe(
+            FolderSetRemoved,
+            self.on_folderset_removed,
         )
 
-    def on_add_folder_group(self):
+    # =============================================================================
+    # Signal Slots
+    #    Slots for signals emmited in the GUI
+    #
+    # Naming convention:
+    #    on_"command"() -> command describes GUI action
+    # =============================================================================
+
+    def on_add_folder_group(self) -> None:
         auto_name = self._determine_folder_group_name()
         self.add_folderset(folderset_name=auto_name)
 
-    def add_folderset(self, folderset_name: Optional[str]):
+    # =============================================================================
+    # Command Dispatchers:
+    #    Methods that issue commands on the command bus.
+    #
+    # Naming convention:
+    #    "action"() -> action describes application layer command
+    # =============================================================================
+
+    def add_folderset(self, folderset_name: str):
         cmd = AddFolderSetCommand(display_name=folderset_name)
         self.command_bus.dispatch(cmd)
 
-    def on_folderset_added(self, folderset: FolderSet):
+    # =============================================================================
+    # Event Slots:
+    #    Slots for events isued on the event_bus
+    #
+    # Naming convention:
+    #    on_"event_happened"() -> event describes past happening
+    # =============================================================================
+
+    def on_folderset_removed(self, event: FolderSetRemoved) -> None:
+        for index in range(self.content.count()):
+            widget = self.content.itemAt(index).widget()
+            if not isinstance(widget, FolderGroupView):
+                continue
+            root_item = widget.model.invisibleRootItem().child(0)
+            widget_id = root_item.data(Qt.ItemDataRole.UserRole)
+            if not widget_id == event.folderset_id:
+                continue
+            self.content.removeWidget(widget)
+            widget.deleteLater()
+            break
+        self._set_current_top_panel()
+
+    def on_folderset_added(self, folderset: FolderSet) -> None:
         folder_group = FolderGroupView()
         vm = FolderGroupViewModel(
             self.command_bus, self.event_bus, folder_group
         )
         folder_group.assign_viewmodel_and_build(vm)
         vm.populate(folderset)
-        self.layout().addWidget(folder_group)
+        self.content.addWidget(folder_group)
+        self._set_current_top_panel()
 
-    def remove_folder_group(self):
-        ...
-
-    def _determine_folder_group_name(self) -> str:
-        """
-        Method returns the placeholder name for new folder groups.
-        """
-        return "New Folder Group"
-
-    def on_context_menu_requested(self, position):
+    def on_context_menu_requested(self, position) -> None:
         """
         Builds and shows the correct context menu on the fly.
         """
@@ -110,13 +153,30 @@ class FolderPanelView(QGroupBox):
 
         menu.exec(self.mapToGlobal(position))
 
-    def _add_action(self, menu: QMenu, text: str, slot):
+    # =============================================================================
+    # Private Helpers:
+    # =============================================================================
+    @staticmethod
+    def _add_action(menu: QMenu, text: str, slot) -> None:
         """
         Private helper factory to create, connect, and add an action.
         """
         action = QAction(text, menu)
         action.triggered.connect(slot)
         menu.addAction(action)
+
+    @staticmethod
+    def _determine_folder_group_name() -> str:
+        """
+        Method returns the placeholder name for new folder groups.
+        """
+        return "New Folder Group"
+
+    def _set_current_top_panel(self):
+        if self.content.isEmpty():
+            self.setCurrentIndex(0)
+        else:
+            self.setCurrentIndex(1)
 
 
 class FolderGroupView(QWidget):
@@ -181,6 +241,7 @@ class FolderGroupView(QWidget):
         self.tree = None
         self._ui = self._UiBuilder(self)
 
+    # noinspection PyUnresolvedReferences
     def assign_viewmodel_and_build(self, viewmodel: FolderGroupViewModel):
         self.model = viewmodel
         self._ui.build()
@@ -204,17 +265,17 @@ class FolderGroupView(QWidget):
             self._add_action(
                 menu,
                 "Add folder",
-                lambda: self.model.on_add_folder_to_group(position),
+                lambda: self.model.on_add_folder_to_group(),
             )
             self._add_action(
                 menu,
                 "Delete group",
-                lambda: self.model.on_delete_folder_group(position),
+                lambda: self.model.on_delete_folder_group(),
             )
             self._add_action(
                 menu,
                 "Rename group",
-                lambda: self.model.on_rename_folder_group(position),
+                lambda: self.model.on_rename_folder_group(),
             )
 
         # Case 2: Clicked on a child folder
@@ -223,17 +284,18 @@ class FolderGroupView(QWidget):
             self._add_action(
                 menu,
                 "Remove folder",
-                lambda: self.model.on_remove_folder_from_group(item, position),
+                lambda: self.model.on_remove_folder_from_group(item),
             )
             self._add_action(
                 menu,
                 "Open folder",
-                lambda: self.model.on_open_folder_from_group(item, position),
+                lambda: self.model.on_open_folder_from_group(item),
             )
 
         menu.exec(self.tree.viewport().mapToGlobal(position))
 
-    def _add_action(self, menu: QMenu, text: str, slot):
+    @staticmethod
+    def _add_action(menu: QMenu, text: str, slot):
         """
         Private helper factory to create, connect, and add an action.
         """
