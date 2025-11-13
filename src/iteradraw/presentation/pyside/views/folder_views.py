@@ -1,4 +1,3 @@
-from enum import StrEnum
 from typing import Optional
 
 from PySide6.QtGui import QAction, Qt
@@ -6,8 +5,9 @@ from PySide6.QtWidgets import (
     QWidget,
     QTreeView,
     QVBoxLayout,
-    QGroupBox,
     QMenu,
+    QFrame,
+    QGroupBox,
 )
 
 from iteradraw.application.commands.folder_commands import AddFolderSetCommand
@@ -24,12 +24,9 @@ Custom PySide QtGui views for the folder panel of the main tab.
 
 class FolderPanelView(QGroupBox):
     """
-    Aggregate view of FolderGroupViews.
-
+        Aggregate view of FolderGroupViews.
+    QStackedWidget
     """
-
-    class Actions(StrEnum):
-        ADD_FOLDERSET = "add_folderset"
 
     class _UiBuilder:
         def __init__(self, parent):
@@ -50,7 +47,7 @@ class FolderPanelView(QGroupBox):
 
             Includes a button to add more FolderSets and section title.
             """
-            ...
+            self.placeholder = QFrame()
 
         def _build_content(self):
             """"""
@@ -65,18 +62,26 @@ class FolderPanelView(QGroupBox):
         self.event_bus = event_bus
         self._ui = self._UiBuilder(self)
         self._ui.build()
+        self.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self._bind_signals()
 
     def _bind_signals(self):
+        self.customContextMenuRequested.connect(self.on_context_menu_requested)
+
         self.event_bus.subscribe(
             FolderSetAdded,
             lambda event: self.add_folder_group(event.folderset),
         )
 
+    def on_add_folder_group(self):
+        auto_name = self._determine_folder_group_name()
+        self.add_folderset(folderset_name=auto_name)
+
     def add_folderset(self, folderset_name: Optional[str]):
         cmd = AddFolderSetCommand(display_name=folderset_name)
         self.command_bus.dispatch(cmd)
 
-    def add_folder_group(self, folderset: FolderSet):
+    def on_folderset_added(self, folderset: FolderSet):
         folder_group = FolderGroupView()
         vm = FolderGroupViewModel(
             self.command_bus, self.event_bus, folder_group
@@ -85,7 +90,33 @@ class FolderPanelView(QGroupBox):
         vm.populate(folderset)
         self.layout().addWidget(folder_group)
 
-    def remove_folder_group(self): ...
+    def remove_folder_group(self):
+        ...
+
+    def _determine_folder_group_name(self) -> str:
+        """
+        Method returns the placeholder name for new folder groups.
+        """
+        return "New Folder Group"
+
+    def on_context_menu_requested(self, position):
+        """
+        Builds and shows the correct context menu on the fly.
+        """
+        menu = QMenu()  # Create a new, fresh menu
+
+        # Case 1: Clicked on group or empty space
+        self._add_action(menu, "Add folder group", self.on_add_folder_group)
+
+        menu.exec(self.mapToGlobal(position))
+
+    def _add_action(self, menu: QMenu, text: str, slot):
+        """
+        Private helper factory to create, connect, and add an action.
+        """
+        action = QAction(text, menu)
+        action.triggered.connect(slot)
+        menu.addAction(action)
 
 
 class FolderGroupView(QWidget):
@@ -97,17 +128,16 @@ class FolderGroupView(QWidget):
     Core Behaviors:
         -Accepts drop operations on unique folders, and rejects duplicates.
         -Defines context menu actions for the folder group and its folders.
+        Actions:
+            ADD_FOLDER
+            REMOVE_FOLDER
+            OPEN_FOLDER
+            DELETE_FOLDERSET
+            RENAME_FOLDERSET
 
     Note: Data-bound, uses View <-> Viewmodel architecture.
           Its viewmodel class is FolderGroupViewModel.
     """
-
-    class Actions(StrEnum):
-        ADD_FOLDER = "add_folder"
-        REMOVE_FOLDER = "remove_folder"
-        OPEN_FOLDER = "open_folder"
-        DELETE_FOLDERSET = "delete_folderset"
-        RENAME_FOLDERSET = "rename_folderset"
 
     class _UiBuilder:
         """
@@ -126,7 +156,6 @@ class FolderGroupView(QWidget):
             self._create_widget()
             self._configure_tree()
             self._install_layout()
-            self._create_actions()
 
         def _create_widget(self):
             self.tree = QTreeView()
@@ -146,92 +175,68 @@ class FolderGroupView(QWidget):
             main_layout = QVBoxLayout(self._parent)
             main_layout.addWidget(self.tree)
 
-        def _create_actions(self):
-            # folder actions:
-            self._parent.action[self._parent.Actions.REMOVE_FOLDER] = QAction(
-                "Remove folder"
-            )
-            self._parent.action[self._parent.Actions.OPEN_FOLDER] = QAction(
-                "Open folder"
-            )
-
-            # folderset actions:
-            self._parent.action[self._parent.Actions.ADD_FOLDER] = QAction(
-                "Add folder"
-            )
-            self._parent.action[self._parent.Actions.DELETE_FOLDERSET] = (
-                QAction("Delete group")
-            )
-            self._parent.action[self._parent.Actions.RENAME_FOLDERSET] = (
-                QAction("Rename group")
-            )
-
     def __init__(self):
         super().__init__()
         self.model = None
-        self.action = {}
+        self.tree = None
         self._ui = self._UiBuilder(self)
-        self.tree = self._ui.tree
-        self.tree.customContextMenuRequested.connect(
-            self._on_context_menu_requested
-        )
 
     def assign_viewmodel_and_build(self, viewmodel: FolderGroupViewModel):
         self.model = viewmodel
         self._ui.build()
+        self.tree = self._ui.tree
+        self.tree.customContextMenuRequested.connect(
+            self.on_context_menu_requested
+        )
 
-    def _on_context_menu_requested(self, position):
+    def on_context_menu_requested(self, position):
         """
-        Deploys the correct menu depending on context.
-
-        Notes:
-
+        Builds and shows the correct context menu on the fly.
         """
         index = self.tree.indexAt(position)
-        if not index.isValid():  # user right-clicked in empty space
-            self._build_foldergroup__menu(position)
-            return
+        menu = QMenu()  # Create a new, fresh menu
 
-        item = self.model.itemFromIndex(index)
-        if item.hasChildren():  # user right-clicked folder group name
-            self._build_foldergroup__menu(position)
-            return
+        # Case 1: Clicked on group or empty space
+        if (
+            not index.isValid()
+            or self.model.itemFromIndex(index).hasChildren()
+        ):
+            self._add_action(
+                menu,
+                "Add folder",
+                lambda: self.model.on_add_folder_to_group(position),
+            )
+            self._add_action(
+                menu,
+                "Delete group",
+                lambda: self.model.on_delete_folder_group(position),
+            )
+            self._add_action(
+                menu,
+                "Rename group",
+                lambda: self.model.on_rename_folder_group(position),
+            )
 
-        self._build_folder_menu(item, position)
-
-    def _build_foldergroup__menu(self, position):
-        menu = QMenu()
-
-        menu.addAction(self.action[self.Actions.ADD_FOLDER])
-        menu.addAction(self.action[self.Actions.DELETE_FOLDERSET])
-        menu.addAction(self.action[self.Actions.RENAME_FOLDERSET])
-
-        self.action[self.Actions.ADD_FOLDER].triggered.disconnect()
-        self.action[self.Actions.DELETE_FOLDERSET].triggered.disconnect()
-        self.action[self.Actions.RENAME_FOLDERSET].triggered.disconnect()
-
-        self.action[self.Actions.ADD_FOLDER].triggered.connect(
-            lambda: self.model.on_add_folder_to_group(position)
-        )
-        self.action[self.Actions.DELETE_FOLDERSET].triggered.connect(
-            lambda: self.model.on_delete_folder_group(position)
-        )
-        self.action[self.Actions.RENAME_FOLDERSET].triggered.connect(
-            lambda: self.model.on_rename_folder_group(position)
-        )
-
-        menu.exec(self.tree.viewport().mapToGlobal(position))
-
-    def _build_folder_menu(self, item, position):
-        menu = QMenu()
-
-        menu.addAction(self.action[self.Actions.REMOVE_FOLDER])
-        menu.addAction(self.action[self.Actions.OPEN_FOLDER])
-        self.action[self.Actions.REMOVE_FOLDER].triggered.connect(
-            lambda: self.model.on_remove_folder_from_group(item, position)
-        )
-        self.action[self.Actions.OPEN_FOLDER].triggered.connect(
-            lambda: self.model.on_open_folder_from_group(item, position)
-        )
+        # Case 2: Clicked on a child folder
+        else:
+            item = self.model.itemFromIndex(index)
+            self._add_action(
+                menu,
+                "Remove folder",
+                lambda: self.model.on_remove_folder_from_group(item, position),
+            )
+            self._add_action(
+                menu,
+                "Open folder",
+                lambda: self.model.on_open_folder_from_group(item, position),
+            )
 
         menu.exec(self.tree.viewport().mapToGlobal(position))
+
+    def _add_action(self, menu: QMenu, text: str, slot):
+        """
+        Private helper factory to create, connect, and add an action.
+        """
+        action = QAction(text, menu)
+        action.triggered.connect(slot)
+        menu.addAction(action)
