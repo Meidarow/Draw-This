@@ -1,6 +1,7 @@
 # Draw-This - ARCHIVED -  
 THIS REPO IS ARCHIVED, ITERADRAW SUPERSEDES THIS PROJECT
-(Iteradraw)[https://github.com/Meidarow/Iteradraw]
+[Iteradraw](https://github.com/Meidarow/Iteradraw)
+
 **Draw-This** is a cross-platform slideshow app for artists and reference collectors.  
 It can crawl folders full of images, store them in a database, and display them using different rendering backends:
 
